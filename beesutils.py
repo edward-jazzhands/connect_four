@@ -8,15 +8,7 @@ from collections import deque
 from datetime import datetime
 import threading
 
-
 """
-ANSI color codes:
-\033[31m - Red
-\033[32m - Green
-\033[33m - Yellow
-\033[34m - Blue
-\033[0m - Reset
-
 List of functions in this file. Try to keep this up to date.
 
 - logging_initializer
@@ -33,6 +25,20 @@ List of functions in this file. Try to keep this up to date.
 - list_files
 
 """
+
+#########################################################################
+
+
+# This is for the color utility function
+ANSI = {
+    "red": "\033[31m",
+    "green": "\033[32m",
+    "yellow": "\033[33m",
+    "blue": "\033[34m",
+    "purple": "\033[35m",
+    "cyan": "\033[36m",
+    "reset": "\033[0m",
+}
 
 # this is just for easy display of the log levels in the toggle function
 log_level_names = {
@@ -58,8 +64,9 @@ class BeesUtils:
 
     @staticmethod
     def logging_initializer(level: str, log_file: str = None) -> None:
-        """ Sets the logging level, allows you to specify a log file.
-        Choose from: DEBUG, INFO, WARNING, ERROR, CRITICAL (case is not sensitive)"""
+        """ Sets the logging level, allows you to specify an optional log file.
+        Choose from: DEBUG, INFO, WARNING, ERROR, CRITICAL (case is not sensitive)
+        usage: BeesUtils.logging_initializer("DEBUG", "log_file.log") """
 
         format: str = "%(asctime)s - %(levelname)s - %(message)s"
 
@@ -75,6 +82,7 @@ class BeesUtils:
         """Extra notes: __members__ is a dictionary of the members of the Enum class.
         One of the many things you can do with an Enum is iterate over its members. """
 
+    @staticmethod
     def log_level_toggle() -> None:
         """ Toggle the logging level between DEBUG and INFO. """
 
@@ -88,6 +96,13 @@ class BeesUtils:
         if current_level == 20:
             logging.getLogger().setLevel(10)
             logging.debug("Logging level set to DEBUG.")
+
+    @staticmethod
+    def color(text: str, color: str = "yellow") -> str:
+        """Wrap text with the given ANSI color code. Default is yellow if no color is specified. """
+        color = color.lower()
+
+        return f"{ANSI[color]}{text}{ANSI['reset']}"
 
 
     @staticmethod
@@ -120,32 +135,29 @@ class BeesUtils:
         else:
             variables_to_print = custom_variables
 
-        print("\033[36m", end="")   ## ANSI ON (cyan)
-        print(f"Current working directory: {os.getcwd()}  |  Platform: {sys.platform}")
+
+        print(BeesUtils.color(f"Current working directory: {os.getcwd()}  |  Platform: {sys.platform}", "cyan"))
 
         for key in variables_to_print:
             if key in os.environ:
-                print("\033[36m", end="")   ## ANSI ON (cyan)
-                print(f"{key} is {os.environ[key]}")
+                print(BeesUtils.color(f"{key} is {os.environ[key]}", "cyan"))
                 ## Remember that os.environ[key] is the same as saying 'the value associated with that key'.
             else:
-                print("\033[31m", end="")   ## ANSI ON (red)
-                print(f"{key} is not in the environment variables.")
-        print("\033[0m")    ## ANSI OFF
+                print(BeesUtils.color(f"{key} is not in the environment variables.", "red"))
 
 
     @staticmethod
     def set_current_dir() -> None:
         """ This sets the working directory to the directory of the script."""
 
+
         current_directory: str = os.getcwd()
-        print("Current working directory:", current_directory)
+        print(BeesUtils.color(f"Current working directory: {current_directory}", "cyan"))
 
         # Set the new working directory to the directory of the script
         new_working_dir: str = os.path.dirname(__file__)
         os.chdir(new_working_dir)
-        print("NEW WORKING DIR:", new_working_dir)
-        print("\033[0m")    ## ANSI OFF
+        print(BeesUtils.color(f"NEW WORKING DIR: {new_working_dir}", "cyan"))
 
     
     @staticmethod
@@ -165,13 +177,13 @@ class BeesUtils:
         """ takes a timestamp and returns the elapsed time since then.
         elapsed_time = BeesUtils.elapsed_calc(timestamp) """
 
-        logging.debug(f"\033[33m start_time = {start_time} \033[0m")
+        logging.debug(f"start_time = {start_time}")
 
         end_time: float = BeesUtils.timestamp()
-        logging.debug(f"\033[33m end_time = {end_time} \033[0m")
+        logging.debug(f"end_time = {end_time}")
 
         elapsed_time: float = end_time - start_time
-        logging.debug(f"\033[33m elapsed_time = {elapsed_time} \033[0m")
+        logging.debug(BeesUtils.color(f"elapsed_time = {elapsed_time}"))
 
         return elapsed_time
     
@@ -203,7 +215,7 @@ class BeesUtils:
         threadded.daemon = True    # daemon threads are killed when the main program exits
         threadded.start()
 
-        logging.debug(f"\033[33m threadded.is_alive() = {threadded.is_alive()} \033[0m")
+        logging.debug(BeesUtils.color(f"threadded.is_alive() = {threadded.is_alive()}"))
 
 
     @staticmethod

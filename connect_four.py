@@ -20,13 +20,11 @@ time_format = "%H:%M:%S"                         ## This is the format for the t
 
 BeesUtils.logging_initializer("DEBUG")           ## Set the logging level for the game.
 
-# Available log levels are DEBUG, INFO, WARNING, ERROR, CRITICAL
-
-
 ##########################################################
  
 def game_display(grid: object) -> None:
-    """ This function handles the display of whatever grid is passed into it, assuming its a 2D list of Cell objects. """
+    """ This function handles the display of whatever grid is passed into it \n
+    Automatically adjusts the border based on the grid size. """
 
     break_bar = "---"
     
@@ -44,23 +42,22 @@ def game_display(grid: object) -> None:
     print("    ", end="")
 
     for i in range(grid.columns):
-        print(" ", ascii_uppercase[i], end="")                 # prints the column letters at the bottom
+        print(" ", ascii_uppercase[i], end="")              # prints the column letters at the bottom
     print("\n")
 
 
 #####################################################
         
 def check_win(grid: object) -> CellState:
-    """ returns 0 for no winner, 1 for player 1, 2 for player 2."""
+    """ If it finds 4 in row, returns the CellState of the winner. \n
+    Otherwise returns CellState.EMPTY."""
 
-    debug_gridscanning = False              # turning this on will print a ton of extra information about the grid scanning process
-                                            # this was useful for debugging the win-checking algorithm
-    logging.debug(f"\033[33m Checking for a winner... \033[0m")
+    debug_gridscanning = False                   # turning this on will print a ton of extra information about the scanning process                                                
+    logging.debug(f"Checking for a winner...")  # this is useful for debugging the algorithm
 
-    grid = grid.grid_matrix                 # the grid has several properties, we specifically want the grid_matrix
-                                            # I could also pass in the grid_matrix directly, but this is more explicit.
-    rows = len(grid)
-    cols = len(grid[0])
+    rows = grid.rows
+    cols = grid.columns
+    grid = grid.grid_matrix                     # for the context of this function, 'grid' means the grid matrix
 
     logging.debug(f"Checking horizontal")
     for row in range(rows):
@@ -70,8 +67,9 @@ def check_win(grid: object) -> CellState:
                if grid[row][col].cell_state == grid[row][col+1].cell_state == \
                grid[row][col+2].cell_state == grid[row][col+3].cell_state:
                                        
-                    logging.debug(f"\033[33m Winner found checking horizontal at row {row}, col {col} \033[0m")
+                    logging.debug(BeesUtils.color(f"Winner found checking horizontal at row {row}, col {col}"))
                     return grid[row][col].cell_state
+               
         if debug_gridscanning:
             logging.debug(f"Horizontal check of row {row} completed. Continuing...")         
 
@@ -84,7 +82,7 @@ def check_win(grid: object) -> CellState:
                grid[row][col].cell_state == grid[row+1][col].cell_state == \
                grid[row+2][col].cell_state == grid[row+3][col].cell_state:
                 
-                logging.debug(f"\033[33m Winner found checking vertical at row {row}, col {col} \033[0m")
+                logging.debug(BeesUtils.color(f"Winner found checking vertical at row {row}, col {col}"))
                 return grid[row][col].cell_state
             
         if debug_gridscanning:
@@ -98,7 +96,7 @@ def check_win(grid: object) -> CellState:
                grid[row][col].cell_state == grid[row+1][col+1].cell_state == \
                grid[row+2][col+2].cell_state == grid[row+3][col+3].cell_state:
                 
-                logging.debug(f"\033[33m Winner found checking diagonal \\ at row {row}, col {col} \033[0m")
+                logging.debug(BeesUtils.color(f"Winner found checking diagonal \\ at row {row}, col {col}"))
                 return grid[row][col].cell_state
             
         if debug_gridscanning:
@@ -112,13 +110,13 @@ def check_win(grid: object) -> CellState:
                grid[row][col].cell_state == grid[row+1][col-1].cell_state == \
                grid[row+2][col-2].cell_state == grid[row+3][col-3].cell_state:
                 
-                logging.debug(f"\033[33m Winner found checking diagonal / at row {row}, col {col} \033[0m")
+                logging.debug(BeesUtils.color(f"Winner found checking diagonal / at row {row}, col {col}"))
                 return grid[row][col].cell_state
             
         if debug_gridscanning:
             logging.debug(f"backward Diagonal check of row {row} completed. Continuing...")
             
-    logging.debug(f"\033[33m No winner found. \033[0m")
+    logging.debug(BeesUtils.color(f"No winner found.", "red"))
     return CellState.EMPTY
 
 
@@ -127,7 +125,7 @@ def check_win(grid: object) -> CellState:
 def inform_user_about_debug() -> None:
     """ This function informs the user about the debug mode. """
 
-    print("Debug mode is turned on. This will print extra information to the console.")
+    print(BeesUtils.color("Debug mode is turned on. This will print extra information to the console."))
     print("If you would like to turn off debug mode then type 'off' or 'debug' and press Enter. Anything else continues.")
     choice = input("Type here: ").lower()
     if choice in ["off", "debug"]:
@@ -136,28 +134,24 @@ def inform_user_about_debug() -> None:
 
 def create_move_dict(grid: object) -> dict:
     """ Generates a connect-four move dictionary from whatever grid is passed into it. (Columns only)"""
-    # Undernote: Allows for dynamic grid sizes. 
+    # Allows for dynamic grid sizes. 
 
-    columns = grid.columns                          # This move dictionary is very simple. It goes A:0, B:1, C:2, etc.
-    move_dict = {}
+    columns = grid.columns                          # This move dictionary is very simple. 
+    move_dict = {}                                  # It goes A:0, B:1, C:2, etc.
 
-    for col in range(columns):                      # Just translates a letter to column index
-        move_dict[ascii_uppercase[col]] = col          # game logic takes care of the rest 
+    for col in range(columns):
+        move_dict[ascii_uppercase[col]] = col
 
     return move_dict 
 
 
-def update_cell(current_cell: object, player: int) -> bool:
-    """ This function updates the cell with the player's piece. Returns True if successful."""
-    # note: that bool return is literally just used for a debug message. Its a bit silly.
-
-    logging.debug(f"Current cell x, y = {current_cell.x}, {current_cell.y}")
-    logging.debug(f"Current cell state: {current_cell.cell_state}")
+def update_cell(current_cell: object, player: PlayerType):
+    """ This function updates the cell with the current player's piece."""
 
     try:
-        current_cell.cell_state = CellState(player)
-        logging.debug(f"Player {player}: {current_cell}")
-        return True
+        current_cell.cell_state = CellState(player.value)
+        logging.debug(f"Placing {player} {current_cell}  in cell {ascii_uppercase[current_cell.y]}{current_cell.x+1}")
+    
     except Exception as e:
         logging.error(f"Error updating cell: {e}")
         raise e
@@ -168,25 +162,25 @@ def update_cell(current_cell: object, player: int) -> bool:
 
 def main_game(game_manager) -> None:
     """ This contains the main game loop and initialization. \n
-    Remember game_manager is the object, gamemanager is the module. """
+    game_manager is the object, gamemanager is the module. """
 
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
         inform_user_about_debug()                         
 
-    print("Connect Four game starting. HINT: Type 'debug' at any point to toggle DEBUG on or off.")
+    print("Connect Four game starting. ", BeesUtils.color("HINT:"), " Type 'debug' at any point to toggle DEBUG on or off.")
     
     game_manager.set_player_types()                                  # self method, sets self.player1_type and self.player2_type
     logging.debug(f"Player 1: {game_manager.player1_type}, Player 2: {game_manager.player2_type}")    # PlayerType enum      
 
     rows: int
     columns: int
-    rows, columns = gamemanager.choose_size_input_bridge()             # Can be default or custom
+    rows, columns = gamemanager.choose_size_input_bridge()            # Can be default or custom
 
     grid: object = gridmaker.Grid(rows, columns)                 
-    logging.debug(f"\033[33m Grid initialized. grid.rows = {grid.rows}, grid.columns = {grid.columns} \033[0m")
+    logging.debug(BeesUtils.color(f"Grid initialized. grid.rows = {grid.rows}, grid.columns = {grid.columns}"))
 
-    move_dict: dict = create_move_dict(grid)                   # Create the move dictionary
-    logging.debug(f"\033[33m Move dictionary: {move_dict} \033[0m")
+    move_dict: dict = create_move_dict(grid)                            # Format: A:0, B:1, C:2, etc.
+    logging.debug(BeesUtils.color(f"Move dictionary: {move_dict}"))     # scales automatically with grid size
                                   
     total_cells: int = grid.rows * grid.columns
 
@@ -194,7 +188,7 @@ def main_game(game_manager) -> None:
     def game_loop(grid: object, move_dict: dict, game_manager: object):
 
         if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
-            # This checks modifying a cell state and displaying it.
+            # This just checks modifying a cell state and displaying it.
 
             current_cell = grid.grid_matrix[0][0]
             current_cell.cell_state = CellState.PLAYER1
@@ -205,9 +199,9 @@ def main_game(game_manager) -> None:
             input("Press Enter to continue...")
 
 
-        timestamp1 = BeesUtils.timestamp()                                  # Get the start time of the game in raw format
+        timestamp1 = BeesUtils.timestamp()                          
         timestamp1_formatted = timestamp1.strftime(time_format)             # Format the timestamp for display
-        print(f"\n\033[33m Game starting at {timestamp1_formatted} \033[0m")
+        print(BeesUtils.color(f"\nGame starting at {timestamp1_formatted}"))
 
         if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
                 if game_manager.player1_type == PlayerType.COMPUTER and game_manager.player2_type == PlayerType.COMPUTER:
@@ -223,7 +217,7 @@ def main_game(game_manager) -> None:
             """ Some notes about the system: The game_manager is toggling the turn token each loop with switch_player()
             By default it starts on PLAYER1. When the move system is called, it will check the current turn token,
             and then check whether that player is a human or computer. Then it will run the appropriate function.
-            Those functions handle the validation. Then either way it returns the same thing: a cell object.
+            Those functions handle the move validation. Then either way it returns the same thing: a cell object.
             This system is great because its modular and automatic. We literally just run the same function
             every time and the game manager takes care of the rest. """
 
@@ -246,9 +240,7 @@ def main_game(game_manager) -> None:
             current_cell: object = game_manager.move_system(move_dict, grid)       # where the auto-magic happens
 
             # update the board with the cell from move_system, and the current player token
-            update_cell_pass: bool = update_cell(current_cell, game_manager.turn_token.value)
-
-            logging.debug (f"Update cell pass: {update_cell_pass}")        # this bool is not used anywhere but this line.
+            update_cell(current_cell, game_manager.turn_token)
 
             game_manager.increment_moves()                                 # increment the move counter              
             winner: CellState = check_win(grid)                            # returns CellState.EMPTY if no winner
@@ -267,9 +259,11 @@ def main_game(game_manager) -> None:
                     logging.error(f"Error getting elapsed time: {e}")
                     raise e
                 if winner == CellState.PLAYER1:
-                    print(f"\n\033[31mPlayer 1 ⬤ is the winner! \033[0m They won in {game_manager.player1_moves} moves.\n") 
+                    print(BeesUtils.color(f"\nPlayer 1 ⬤ is the winner!", "red"), end=" ")
+                    print(f"They won in {game_manager.player1_moves} moves.\n")
                 else:
-                    print(f"\n\033[34mPlayer 2 ⬤ is the winner! \033[0m They won in {game_manager.player2_moves} moves.\n")
+                    print(BeesUtils.color(f"\nPlayer 2 ⬤ is the winner!", "blue"), end=" ")
+                    print(f"They won in {game_manager.player2_moves} moves.\n")
                 print(f"The game took {elapsed_formatted}\n")         
                 break                                                   
             elif game_manager.total_moves - 1 == total_cells:           # if the board is full
@@ -277,8 +271,8 @@ def main_game(game_manager) -> None:
                 print("It's a draw!")                                   
                 break  
             else:                                                       # no winner, board not full
-                logging.debug("No winner found. Continuing...")
                 previous_player = game_manager.turn_token               # this is an Enum member
+                logging.debug(BeesUtils.color(f"Switching players", "cyan"))
                 game_manager.switch_player()                            # flips turn token
                 continue 
 

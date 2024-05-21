@@ -8,16 +8,13 @@ from cfenums import TurnToken, PlayerType, CellState
 
 
 from inputfuncs import InputFuncs
+from beesutils import BeesUtils
+
 
 
 class GameManager:
-    """ This class manages the game state.
-
-    - The current player (1 or 2)
-    - Whether its two humans or human vs computer. (Or, extra bonus, computer vs computer)
-    - The winner of the game
-    - The number of moves made
-    - Other things I will add later   """
+    """ Manages the game state. Also contains a bunch of functions that are called by the main game loop.
+    Acts as an intermediary between the main game loop and the input functions. """
 
 
     def __init__(self):
@@ -35,21 +32,21 @@ class GameManager:
     @staticmethod
     def initialization_message() -> None:
 
-        logging.debug(f"\033[33m GameManager initialized. \033[0m")
+        logging.debug(BeesUtils.color(f"GameManager initialized."))
 
     @staticmethod
     def play_again() -> bool:
         """ This is called in the external loop if main_game() is exited. """
 
         while True:
-            logging.debug(f"\033[33m play_again called. \033[0m")
+            logging.debug(BeesUtils.color(f"play_again called."))
             play_again = input("Would you like to play again? (Y/N): ")
             play_again = play_again.upper()
             if play_again == "Y":
-                logging.debug(f"\033[33m Game should be restarting... \033[0m")
+                logging.debug(BeesUtils.color(f"Game should be restarting..."))
                 return True
             elif play_again == "N":
-                logging.debug(f"\033[33m Game Manager stopped. \033[0m")       
+                logging.debug(BeesUtils.color(f"Game Manager stopped.", "red"))       
                 return False
             else:
                 print("Invalid input. Please enter Y or N.")
@@ -91,16 +88,16 @@ class GameManager:
         if self.turn_token == TurnToken.PLAYER1:
             player_type = self.player1_type
             player_moves = self.player1_moves
-            token_color = "\033[31m"    # Red token for player 1
+            sign = f"{BeesUtils.color("Player 1's turn ⬤", "red")}"
             
         else:
             player_type = self.player2_type
             player_moves = self.player2_moves
-            token_color = "\033[34m"    # Blue token for player 2
+            sign = f"{BeesUtils.color("Player 2's turn ⬤", "blue")}"
 
         logging.debug(f"Player type: {player_type}")
 
-        print(f"\n{token_color}Player {self.turn_token.value}'s turn. ⬤\033[0m | Move #: {player_moves+1}\n")    # Red token for player 1
+        print(f"\n {sign} | Move #: {player_moves+1}\n")
             
         if player_type == PlayerType.HUMAN:       
             current_cell = InputFuncs.human_move(self.turn_token.value, move_dict, grid)
@@ -114,7 +111,6 @@ class GameManager:
             logging.error(f"Error in move_system. Not human or computer. self.turn_token: {self.turn_token}")
             current_cell = None
 
-        logging.debug(f"Current cell: {current_cell}")
         return current_cell
     
     

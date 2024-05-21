@@ -57,7 +57,7 @@ class InputFuncs:
         while True:
 
             column_index = random.choice(list(move_dict.values()))          # pick random column from move dictionary
-            logging.debug(f"Computer chose column {column_index}")
+            logging.debug(BeesUtils.color(f"Computer chose column {column_index}", "green"))
             
             column_cells = []
             for row in range(grid.rows):
@@ -67,7 +67,7 @@ class InputFuncs:
                     logging.debug(f"Empty cell found: {cell}   x, y = {cell.x}, {cell.y}")
 
             if not column_cells:                                            
-                logging.debug("Computer tried to pick full column. Choosing again.")
+                logging.debug(BeesUtils.color("Computer tried to pick full column. Choosing again.", "red"))
                 continue 
 
             lowest = column_cells[-1]
@@ -82,7 +82,7 @@ class InputFuncs:
         """ This function allows the user to choose the size of the grid. """
 
         print("Type anything for default size (6x7). Type 'c' to set a custom grid size.")
-        print("Type 'debug' to toggle debug mode.")
+        print(BeesUtils.color("Type 'debug' to toggle debug mode.", "cyan"))
         
         while True:
 

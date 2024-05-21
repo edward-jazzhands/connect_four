@@ -6,7 +6,13 @@ from cfenums import CellState
 
 """ This is a 'grid generator' script. I'm hoping this will over time become a class that can be imported into other games. """
 
-
+ANSI = {
+    "red": "\033[31m",
+    "green": "\033[32m",
+    "yellow": "\033[33m",
+    "blue": "\033[34m",
+    "reset": "\033[0m",
+}
 
 class Cell:
     """ Defines the properties of each cell """
@@ -20,9 +26,9 @@ class Cell:
         this logic from the display function. We can modify how they look here without changing the display function. """
                          
         if self.cell_state == CellState.PLAYER1:
-            return "\033[31m⬤\033[0m"   
+            return f"{ANSI['red']}⬤{ANSI['reset']}"   
         elif self.cell_state == CellState.PLAYER2:
-            return "\033[34m⬤\033[0m"    
+            return f"{ANSI['blue']}⬤{ANSI['reset']}"    
         else:                               
             return "O"                        # print an O if the cell is empty
         
@@ -33,11 +39,7 @@ class Grid:
     def __init__(self, rows: int, columns: int):
         self.rows = rows                   
         self.columns = columns
-        try:
-            self.grid_matrix = [[Cell(x, y) for y in range(columns)] for x in range(rows)]
-        except Exception as e:
-            logging.error(f"Error initializing grid: {e}")
-            raise e
+        self.grid_matrix = [[Cell(x, y) for y in range(columns)] for x in range(rows)]
 
         # The line in the try block above is the list comprehension version of the following
         # this is just here for educational purposes, I'm still new to list comprehensions
