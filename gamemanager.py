@@ -53,6 +53,7 @@ class GameManager:
 
     def switch_player(self) -> None:
         """ Switches the current player. """
+        logging.debug(BeesUtils.color(f"Switching players...", "cyan"))
 
         if self.turn_token == TurnToken.PLAYER1:
             self.turn_token = TurnToken.PLAYER2

@@ -53,7 +53,7 @@ def check_win(grid: object) -> CellState:
     Otherwise returns CellState.EMPTY."""
 
     debug_gridscanning = False                   # turning this on will print a ton of extra information about the scanning process                                                
-    logging.debug(f"Checking for a winner...")  # this is useful for debugging the algorithm
+    logging.debug(f"Checking for a winner...")   # this is useful for debugging the algorithm
 
     rows = grid.rows
     cols = grid.columns
@@ -63,8 +63,8 @@ def check_win(grid: object) -> CellState:
     for row in range(rows):
         for col in range(cols - 3):
 
-            if grid[row][col].cell_state != CellState.EMPTY:
-               if grid[row][col].cell_state == grid[row][col+1].cell_state == \
+            if grid[row][col].cell_state != CellState.EMPTY and \
+               grid[row][col].cell_state == grid[row][col+1].cell_state == \
                grid[row][col+2].cell_state == grid[row][col+3].cell_state:
                                        
                     logging.debug(BeesUtils.color(f"Winner found checking horizontal at row {row}, col {col}"))
@@ -198,12 +198,10 @@ def main_game(game_manager) -> None:
             current_cell.cell_state = CellState.EMPTY                       # Resets to empty after testing
             input("Press Enter to continue...")
 
-
         timestamp1 = BeesUtils.timestamp()                          
         timestamp1_formatted = timestamp1.strftime(time_format)             # Format the timestamp for display
         print(BeesUtils.color(f"\nGame starting at {timestamp1_formatted}"))
             
-
         previous_player = None                                          
         while True:
 
@@ -244,32 +242,30 @@ def main_game(game_manager) -> None:
 
             ################ END OF CORE GAME LOOP ################
 
-
             if winner != CellState.EMPTY:                                  # if there is a winner
 
-                game_display(grid)                 
-                try:
-                    elapsed_time: float = BeesUtils.elapsed_calc(timestamp1)   # easier to do math on the raw timestamp and then format it
-                    elapsed_formatted: str = BeesUtils.format_elapsed(elapsed_time)
-                except Exception as e:
-                    logging.error(f"Error getting elapsed time: {e}")
-                    raise e
+                game_display(grid)                                         # print the final display
+
+                elapsed_time: float = BeesUtils.elapsed_calc(timestamp1)   # easier to do math on the raw timestamp and then format it
+                elapsed_formatted: str = BeesUtils.format_elapsed(elapsed_time)
+
                 if winner == CellState.PLAYER1:
                     print(BeesUtils.color(f"\nPlayer 1 ⬤ is the winner!", "red"), end=" ")
                     print(f"They won in {game_manager.player1_moves} moves.\n")
                 else:
                     print(BeesUtils.color(f"\nPlayer 2 ⬤ is the winner!", "blue"), end=" ")
                     print(f"They won in {game_manager.player2_moves} moves.\n")
+
                 print(f"The game took {elapsed_formatted}\n")         
-                return winner                                                   
-            elif game_manager.total_moves - 1 == total_cells:           # if the board is full
-                game_display(grid)                                      # print the final display
+                return winner    
+                                                           
+            elif game_manager.total_moves - 1 == total_cells:               # if the board is full
+                game_display(grid)                                      
                 print("It's a draw!")                                   
                 return CellState.EMPTY  
-            else:                                                       # no winner, board not full
-                previous_player = game_manager.turn_token               # this is an Enum member
-                logging.debug(BeesUtils.color(f"Switching players", "cyan"))
-                game_manager.switch_player()                            # flips turn token
+            else:                                                           # no winner, board not full
+                previous_player = game_manager.turn_token                   # this is an Enum member
+                game_manager.switch_player()                                # flips turn token
                 continue
     
     ######### END OF GAME LOOP FUNCTION #########
