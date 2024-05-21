@@ -170,7 +170,7 @@ def main_game(game_manager) -> None:
     print("Connect Four game starting. ", BeesUtils.color("HINT:"), " Type 'debug' at any point to toggle DEBUG on or off.")
     
     game_manager.set_player_types()                                  # self method, sets self.player1_type and self.player2_type
-    logging.debug(f"Player 1: {game_manager.player1_type}, Player 2: {game_manager.player2_type}")    # PlayerType enum      
+    logging.debug(f"Player 1: {game_manager.player1_type}, Player 2: {game_manager.player2_type}")    # PlayerType enum    
 
     rows: int
     columns: int
@@ -185,7 +185,7 @@ def main_game(game_manager) -> None:
     total_cells: int = grid.rows * grid.columns
 
 
-    def game_loop(grid: object, move_dict: dict, game_manager: object):
+    def game_loop(grid: object, move_dict: dict, game_manager: object, hide_board: bool = False) -> CellState:
 
         if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
             # This just checks modifying a cell state and displaying it.
@@ -202,12 +202,7 @@ def main_game(game_manager) -> None:
         timestamp1 = BeesUtils.timestamp()                          
         timestamp1_formatted = timestamp1.strftime(time_format)             # Format the timestamp for display
         print(BeesUtils.color(f"\nGame starting at {timestamp1_formatted}"))
-
-        if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
-                if game_manager.player1_type == PlayerType.COMPUTER and game_manager.player2_type == PlayerType.COMPUTER:
-                    print("Both players are computers, and you're in DEBUG mode. Game will pause each turn.")
-                    print("Turn off debug mode and they will play automatically, very fast.")
-                    print("Remember you can turn off debug by typing 'debug'")
+            
 
         previous_player = None                                          
         while True:
@@ -218,17 +213,18 @@ def main_game(game_manager) -> None:
             By default it starts on PLAYER1. When the move system is called, it will check the current turn token,
             and then check whether that player is a human or computer. Then it will run the appropriate function.
             Those functions handle the move validation. Then either way it returns the same thing: a cell object.
-            This system is great because its modular and automatic. We literally just run the same function
-            every time and the game manager takes care of the rest. """
+            This system is great because its modular and automatic. It just runs the same function with the same
+            args every time and the game manager takes care of the rest. """
 
-            game_display(grid)
+            if not hide_board:
+                game_display(grid)
+                if previous_player:         # enum
+                    print(f"Last move: Column {ascii_uppercase[current_cell.y]} by Player {previous_player.value}")
 
-            if previous_player:         # enum
-                print(f"Last move: Column {ascii_uppercase[current_cell.y]} by Player {previous_player.value}")
-
-            if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
-                if game_manager.player1_type == PlayerType.COMPUTER and game_manager.player2_type == PlayerType.COMPUTER:
-
+            # this pauses the game every turn if debug is on
+            if game_manager.player1_type == PlayerType.COMPUTER and game_manager.player2_type == PlayerType.COMPUTER:
+                if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+                
                     while True:
                         debug_wait = input("Type anything to continue, or 'debug' to toggle debug mode:")
                         if debug_wait == "debug":
@@ -265,21 +261,76 @@ def main_game(game_manager) -> None:
                     print(BeesUtils.color(f"\nPlayer 2 ⬤ is the winner!", "blue"), end=" ")
                     print(f"They won in {game_manager.player2_moves} moves.\n")
                 print(f"The game took {elapsed_formatted}\n")         
-                break                                                   
+                return winner                                                   
             elif game_manager.total_moves - 1 == total_cells:           # if the board is full
                 game_display(grid)                                      # print the final display
                 print("It's a draw!")                                   
-                break  
+                return CellState.EMPTY  
             else:                                                       # no winner, board not full
                 previous_player = game_manager.turn_token               # this is an Enum member
                 logging.debug(BeesUtils.color(f"Switching players", "cyan"))
                 game_manager.switch_player()                            # flips turn token
-                continue 
+                continue
+    
+    ######### END OF GAME LOOP FUNCTION #########
 
-
-    ## run game loop after initializations                                     
-    game_loop(grid, move_dict, game_manager)
+    if game_manager.player1_type == PlayerType.COMPUTER and game_manager.player2_type == PlayerType.COMPUTER:
         
+        print(BeesUtils.color("Detected that both players are COMPUTER. Please enter the number of games to simulate."))
+        logging.debug(BeesUtils.color("Also note you are in DEBUG mode. It will pause every turn.", "cyan"))
+        logging.debug(BeesUtils.color("Toggle debug off to let it run automatically.", "cyan"))
+
+        while True:
+            simulation_count = input("Enter a number (or 'debug'): ")
+            if simulation_count == "debug":
+                BeesUtils.log_level_toggle()
+                continue
+            try:
+                simulation_count = int(simulation_count)
+                break
+            except ValueError:
+                print("Please enter a number.")
+            
+
+        print("Would you like to hide the board?", BeesUtils.color("Type 'Y/y' to hide the board."))
+        print("This is useful if you are running a large number of simulations.")
+        hide_board_inp = input("'Y/y' to hide board, Anything else shows board: ").upper()
+        if hide_board_inp == "Y":
+            hide_board = True               # i like bool
+        else:
+            hide_board = False
+            
+        player1_wins: int = 0
+        player2_wins: int = 0
+        draws: int = 0
+
+        timestamp2 = BeesUtils.timestamp()                      
+        for i in range(simulation_count):
+            game_result: CellState = game_loop(grid, move_dict, game_manager, hide_board)   
+            print(f"Game {i+1} completed. Game result: {game_result.name}")
+
+            if game_result == CellState.PLAYER1:
+                player1_wins += 1
+            elif game_result == CellState.PLAYER2:
+                player2_wins += 1
+            else:
+                draws += 1
+
+            grid = gridmaker.Grid(rows, columns)                     # reset the grid
+            game_manager.reset_moves()                               # reset the move counter
+            
+        elapsed_time: float = BeesUtils.elapsed_calc(timestamp2)
+        elapsed_formatted: str = BeesUtils.format_elapsed(elapsed_time)            
+
+        print(BeesUtils.color(f"\nSimulation of {simulation_count} games completed."))
+        print(f"Player 1 wins: {player1_wins}, Player 2 wins: {player2_wins}, Draws: {draws}")
+        print(f"Start time: {timestamp2.strftime(time_format)}, End time: {BeesUtils.timestamp().strftime(time_format)}")
+        print(f"Simulations took {elapsed_formatted}")
+
+    else:        
+
+        game_loop(grid, move_dict, game_manager)
+
 
 #################################################################        
 

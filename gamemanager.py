@@ -24,8 +24,7 @@ class GameManager:
         self.turn_token = TurnToken.PLAYER1          # keeps track of whose turn it is
         self.player1_moves = 0
         self.player2_moves = 0
-        self.total_moves = 1
-        self.winner = None                           # not currently used!
+        self.total_moves = 0
         self.initialization_message()
 
     
@@ -69,6 +68,13 @@ class GameManager:
         elif self.turn_token == TurnToken.PLAYER2:
             self.player2_moves += 1
             self.total_moves += 1
+
+    def reset_moves(self) -> None:
+        """ Resets the number of moves made by each player. """
+
+        self.player1_moves = 0
+        self.player2_moves = 0
+        self.total_moves = 1
 
     def set_player_types(self):
 

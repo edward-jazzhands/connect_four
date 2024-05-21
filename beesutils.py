@@ -88,14 +88,14 @@ class BeesUtils:
 
         current_level: int = logging.getLogger().getEffectiveLevel()
         logger_level: str = log_level_names[current_level]
-        print(f"Logging level change requested. Current level is: {logger_level}")
+        print(BeesUtils.color(f"Logging level change requested. Current level is: {logger_level}", "cyan"))
 
         if current_level == 10:
             logging.getLogger().setLevel(20)
-            logging.info("Logging level set to INFO.")
+            logging.info(BeesUtils.color("Logging level set to INFO.", "green"))
         if current_level == 20:
             logging.getLogger().setLevel(10)
-            logging.debug("Logging level set to DEBUG.")
+            logging.debug(BeesUtils.color("Logging level set to DEBUG.", "green"))
 
     @staticmethod
     def color(text: str, color: str = "yellow") -> str:
