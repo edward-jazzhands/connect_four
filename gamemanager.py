@@ -147,14 +147,6 @@ def choose_size_input_bridge() -> Tuple[int, int]:
     return rows, columns
 
 
-def winner_direc_and_col(direction, column) -> None:
-    """ This function just stores the winner's direction and column in memory. """
-    
-    logging.debug(f"Winner found in direction {direction}, starting in {column}")
-    # This is just a placeholder for now. I'm not sure what I want to do with this yet. ##
-    # somehow store them here for use later....
-
-
 
 
 
