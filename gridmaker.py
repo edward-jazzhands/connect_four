@@ -16,12 +16,13 @@ ANSI = {
 
 class Cell:
     """ Defines the properties of each cell """
-    def __init__(self, x: int, y: int):         # Each cell has the X and Y coordinates baked in
-        self.x = x
+    
+    def __init__(self, x: int, y: int):          # Each cell has the X and Y coordinates baked in
+        self.x = x                               # this is extremely useful later in the program.
         self.y = y
         self.cell_state = CellState.EMPTY
         
-    def __str__(self) -> str:                    # This is used when the object is printed
+    def __str__(self) -> str: 
         """ Defining how to print cells inside the __str__ method allows us to separate
         this logic from the display function. We can modify how they look here without changing the display function. """
                          
@@ -41,13 +42,13 @@ class Grid:
         self.columns = columns
         self.grid_matrix = [[Cell(x, y) for y in range(columns)] for x in range(rows)]
 
-        # The line in the try block above is the list comprehension version of the following
+        # The line above is the list comprehension version of the following
         # this is just here for educational purposes, I'm still new to list comprehensions
 
         # self.grid_matrix = []                          
         # for x in range(rows):                   ## For each row in the grid,
         #     row = []                            ## Create empty list for the row
         #     for y in range(columns):            ## for each column in the row
-        #         new_cell = Cell(x, y)           ## New cell = Cell object with X, Y coordinates
+        #         new_cell = Cell(x, y)           ## New cell = Cell object with X, Y coordinates baked in
         #         row.append(new_cell)            ## Append new cell to the row list
         #     self.grid_matrix.append(row)        ## When row is finished, append to the grid

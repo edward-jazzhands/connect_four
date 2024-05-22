@@ -46,81 +46,73 @@ def game_display(grid: object) -> None:
     print("\n")
 
 
-#####################################################
+############   Check for Winner Function    ############
         
-def check_win(grid: object) -> CellState:
-    """ If it finds 4 in row, returns the CellState of the winner. \n
-    Otherwise returns CellState.EMPTY."""
+def check_win(grid: object, game_manager: object) -> CellState:
+    """Checks the grid for a winner. If winner, returns CellState of winner, otherwise CellState.EMPTY."""
 
-    debug_gridscanning = False                   # turning this on will print a ton of extra information about the scanning process                                                
-    logging.debug(f"Checking for a winner...")   # this is useful for debugging the algorithm
+    logging.debug(f"Starting check_win function.")
 
-    rows = grid.rows
-    cols = grid.columns
-    grid = grid.grid_matrix                     # for the context of this function, 'grid' means the grid matrix
+    grid_matrix = grid.grid_matrix
 
-    logging.debug(f"Checking horizontal")
-    for row in range(rows):
-        for col in range(cols - 3):
+    direction_dict = {
+        "horizontal": (0, 1),             # right
+        "vertical": (1, 0),               # down
+        "down-right": (1, 1),             # down-right
+        "down-left": (1, -1)              # down-left
+    }
 
-            if grid[row][col].cell_state != CellState.EMPTY and \
-               grid[row][col].cell_state == grid[row][col+1].cell_state == \
-               grid[row][col+2].cell_state == grid[row][col+3].cell_state:
-                                       
-                    logging.debug(BeesUtils.color(f"Winner found checking horizontal at row {row}, col {col}"))
-                    return grid[row][col].cell_state
-               
-        if debug_gridscanning:
-            logging.debug(f"Horizontal check of row {row} completed. Continuing...")         
+    #### Helpers ####
+    def is_valid_cell(row_boundary: int, col_boundary: int) -> bool:
+        """Checks if a cell is within the grid boundaries."""
 
+        is_in_boundaries = 0 <= row_boundary < grid.rows and 0 <= col_boundary < grid.columns
+        return is_in_boundaries
 
-    logging.debug(f"Checking vertical")
-    for col in range(cols):
-        for row in range(rows - 3):
+    def check_line(start_row: int, start_col: int, direction_name: str) -> CellState:
+        """ Checks for a streak of four in a line. This runs after is_valid_cell. """
+
+        dr, dc = direction_dict[direction_name]                          # unpacks the direction tuple
+        cell_state = grid_matrix[start_row][start_col].cell_state
+        if cell_state == CellState.EMPTY:                               
+            return None                                                  # break out function if empty
+
+        logging.debug(f"Cell not empty, potential line is in boundaries. Checking {direction_name} at {start_row}, {start_col}")
+        
+        # This breaks out the function if it hits a cell that is not the same state as the original.
+        for i in range(1, 4):
+            if grid_matrix[start_row + i * dr][start_col + i * dc].cell_state != cell_state:
+                return None
             
-            if grid[row][col].cell_state != CellState.EMPTY and \
-               grid[row][col].cell_state == grid[row+1][col].cell_state == \
-               grid[row+2][col].cell_state == grid[row+3][col].cell_state:
-                
-                logging.debug(BeesUtils.color(f"Winner found checking vertical at row {row}, col {col}"))
-                return grid[row][col].cell_state
+        # thus if we didn't return None, then we have a winner.
+        logging.debug(BeesUtils.color(f"Winner found in direction {direction_name} starting in column {start_col}"))
+        game_manager.winner_direction = direction_name
+        game_manager.win_starting_column = start_col
+        return cell_state   
+    
+    #### End of Helpers ######
+    
+    for row in range(grid.rows):
+        for col in range(grid.columns):
             
-        if debug_gridscanning:
-            logging.debug(f"Vertical check of column {col} completed. Continuing...")
+            cell = grid_matrix[row][col]
+            if cell.cell_state == CellState.EMPTY:                          # Skip if current cell is empty
+                continue                                               
+            else:
+                for direction_name, direction_tuple in direction_dict.items():
+                    dr, dc = direction_tuple
+                    row_boundary = row + 3 * dr                             # breaking out the math just makes it easier to understand
+                    col_boundary = col + 3 * dc
+                    if is_valid_cell(row_boundary, col_boundary):           # check if (current cell + 3) is in bounds
+                        result = check_line(row, col, direction_name)       # pass in start coordinate and direction
+                        if result:
+                            return result        # returns CellState.PLAYER1 or CellState.PLAYER2 if winner is found 
 
-    logging.debug(f"Checking diagonal (top-left to bottom-right \\ )")
-    for row in range(rows - 3):
-        for col in range(cols - 3):
-
-            if grid[row][col].cell_state != CellState.EMPTY and \
-               grid[row][col].cell_state == grid[row+1][col+1].cell_state == \
-               grid[row+2][col+2].cell_state == grid[row+3][col+3].cell_state:
-                
-                logging.debug(BeesUtils.color(f"Winner found checking diagonal \\ at row {row}, col {col}"))
-                return grid[row][col].cell_state
-            
-        if debug_gridscanning:
-            logging.debug(f"forward Diagonal check of row {row} completed. Continuing...")
-
-    logging.debug(f"Checking diagonal (top-right to bottom-left / )")
-    for row in range(rows - 3):
-        for col in range(3, cols):
-
-            if grid[row][col].cell_state != CellState.EMPTY and \
-               grid[row][col].cell_state == grid[row+1][col-1].cell_state == \
-               grid[row+2][col-2].cell_state == grid[row+3][col-3].cell_state:
-                
-                logging.debug(BeesUtils.color(f"Winner found checking diagonal / at row {row}, col {col}"))
-                return grid[row][col].cell_state
-            
-        if debug_gridscanning:
-            logging.debug(f"backward Diagonal check of row {row} completed. Continuing...")
-            
-    logging.debug(BeesUtils.color(f"No winner found.", "red"))
-    return CellState.EMPTY
+    return CellState.EMPTY                       # defaults to CellState.EMPTY if no winner is found
 
 
-#################################################################
+#############    General game functions    ##############
+
 
 def inform_user_about_debug() -> None:
     """ This function informs the user about the debug mode. """
@@ -129,7 +121,7 @@ def inform_user_about_debug() -> None:
     print("If you would like to turn off debug mode then type 'off' or 'debug' and press Enter. Anything else continues.")
     choice = input("Type here: ").lower()
     if choice in ["off", "debug"]:
-        BeesUtils.log_level_toggle()                                 # toggles the logging level
+        BeesUtils.log_level_toggle()
 
 
 def create_move_dict(grid: object) -> dict:
@@ -185,7 +177,7 @@ def main_game(game_manager) -> None:
     total_cells: int = grid.rows * grid.columns
 
 
-    def game_loop(grid: object, move_dict: dict, game_manager: object, hide_board: bool = False) -> CellState:
+    def game_loop(grid: object, move_dict: dict, game_manager: object, hide_board: bool = False, ultrasim: bool = False) -> CellState:
 
         if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
             # This just checks modifying a cell state and displaying it.
@@ -198,9 +190,10 @@ def main_game(game_manager) -> None:
             current_cell.cell_state = CellState.EMPTY                       # Resets to empty after testing
             input("Press Enter to continue...")
 
-        timestamp1 = BeesUtils.timestamp()                          
-        timestamp1_formatted = timestamp1.strftime(time_format)             # Format the timestamp for display
-        print(BeesUtils.color(f"\nGame starting at {timestamp1_formatted}"))
+        if not ultrasim:
+            timestamp1 = BeesUtils.timestamp()                          
+            timestamp1_formatted = timestamp1.strftime(time_format)         # Format the timestamp for display
+            print(BeesUtils.color(f"\nGame starting at {timestamp1_formatted}"))
             
         previous_player = None                                          
         while True:
@@ -231,37 +224,43 @@ def main_game(game_manager) -> None:
                         else:
                             break
 
-            current_cell: object = game_manager.move_system(move_dict, grid)       # where the auto-magic happens
+            current_cell: object = game_manager.move_system(move_dict, grid, hide_board)       # where the auto-magic happens
 
             # update the board with the cell from move_system, and the current player token
             update_cell(current_cell, game_manager.turn_token)
 
             game_manager.increment_moves()                                 # increment the move counter              
-            winner: CellState = check_win(grid)                            # returns CellState.EMPTY if no winner
-            logging.debug(f"Winner check: {winner}")                       # returns CellState.PLAYER1 or CellState.PLAYER2 if winner
+            winner: CellState = check_win(grid, game_manager)         # returns CellState.EMPTY if no winner
 
             ################ END OF CORE GAME LOOP ################
 
             if winner != CellState.EMPTY:                                  # if there is a winner
+                
+                if not ultrasim:
+                    game_display(grid)                                         # print the final display
 
-                game_display(grid)                                         # print the final display
+                    elapsed_time: float = BeesUtils.elapsed_calc(timestamp1)   # easier to do math on the raw timestamp and then format it
+                    elapsed_formatted: str = BeesUtils.format_elapsed(elapsed_time)
 
-                elapsed_time: float = BeesUtils.elapsed_calc(timestamp1)   # easier to do math on the raw timestamp and then format it
-                elapsed_formatted: str = BeesUtils.format_elapsed(elapsed_time)
 
-                if winner == CellState.PLAYER1:
-                    print(BeesUtils.color(f"\nPlayer 1 ⬤ is the winner!", "red"), end=" ")
-                    print(f"They won in {game_manager.player1_moves} moves.\n")
-                else:
-                    print(BeesUtils.color(f"\nPlayer 2 ⬤ is the winner!", "blue"), end=" ")
-                    print(f"They won in {game_manager.player2_moves} moves.\n")
+                    print(BeesUtils.color(f"Winner found in direction: {game_manager.winner_direction} -"), end=" ")
+                    print(BeesUtils.color(f"starting in column {ascii_uppercase[game_manager.win_starting_column]}", "cyan"))
 
-                print(f"The game took {elapsed_formatted}\n")         
+                    if winner == CellState.PLAYER1:
+                        print(BeesUtils.color(f"\nPlayer 1 ⬤ is the winner!", "red"), end=" ")
+                        print(f"They won in {game_manager.player1_moves} moves.\n")
+                    else:
+                        print(BeesUtils.color(f"\nPlayer 2 ⬤ is the winner!", "blue"), end=" ")
+                        print(f"They won in {game_manager.player2_moves} moves.\n")
+
+                        print(f"The game took {elapsed_formatted}\n")         
                 return winner    
                                                            
             elif game_manager.total_moves - 1 == total_cells:               # if the board is full
-                game_display(grid)                                      
-                print("It's a draw!")                                   
+                
+                if not ultrasim:
+                    game_display(grid)                                      
+                    print("It's a draw!")                                   
                 return CellState.EMPTY  
             else:                                                           # no winner, board not full
                 previous_player = game_manager.turn_token                   # this is an Enum member
@@ -269,6 +268,8 @@ def main_game(game_manager) -> None:
                 continue
     
     ######### END OF GAME LOOP FUNCTION #########
+    #-------------------------------------------#
+    ######### Simulation mode section  ##########
 
     if game_manager.player1_type == PlayerType.COMPUTER and game_manager.player2_type == PlayerType.COMPUTER:
         
@@ -286,24 +287,34 @@ def main_game(game_manager) -> None:
                 break
             except ValueError:
                 print("Please enter a number.")
-            
 
-        print("Would you like to hide the board?", BeesUtils.color("Type 'Y/y' to hide the board."))
+        hide_board = False
+        ultrasim = False    
+
+        print("Would you like to hide the board during the game?", BeesUtils.color("Type 'Y/y' to hide the board."))
         print("This is useful if you are running a large number of simulations.")
-        hide_board_inp = input("'Y/y' to hide board, Anything else shows board: ").upper()
+        print(BeesUtils.color("Note that it will still show the final board at the end of each game.", "cyan"))
+        print(BeesUtils.color("Or if you want it to not show the board at ALL (for huge numbers of simulations), type 'ultrasim'.", "red"))
+        hide_board_inp = input(BeesUtils.color("'Y/y' to hide, 'ultrasim' hides all. Anything else shows board: ")).upper()
+        
         if hide_board_inp == "Y":
-            hide_board = True               # i like bool
-        else:
-            hide_board = False
-            
-        player1_wins: int = 0
-        player2_wins: int = 0
-        draws: int = 0
-
-        timestamp2 = BeesUtils.timestamp()                      
+            hide_board = True  
+        elif hide_board_inp == "ULTRASIM":
+            hide_board = True
+            ultrasim = True
+        
+        player1_wins, player2_wins, draws = 0, 0, 0
+        win_direction_dict = {
+            "horizontal wins": 0,
+            "vertical wins": 0,
+            "down-right wins": 0,
+            "down-left wins": 0,
+        }           
+        timestamp2 = BeesUtils.timestamp()
+                              
         for i in range(simulation_count):
-            game_result: CellState = game_loop(grid, move_dict, game_manager, hide_board)   
-            print(f"Game {i+1} completed. Game result: {game_result.name}")
+            game_result: CellState = game_loop(grid, move_dict, game_manager, hide_board, ultrasim)   
+            print(f"Game {i+1} completed. Game result: {game_result.name}")         # remove this for uber-sim
 
             if game_result == CellState.PLAYER1:
                 player1_wins += 1
@@ -312,6 +323,8 @@ def main_game(game_manager) -> None:
             else:
                 draws += 1
 
+            win_direction_dict[f"{game_manager.winner_direction} wins"] += 1
+
             grid = gridmaker.Grid(rows, columns)                     # reset the grid
             game_manager.reset_moves()                               # reset the move counter
             
@@ -319,11 +332,18 @@ def main_game(game_manager) -> None:
         elapsed_formatted: str = BeesUtils.format_elapsed(elapsed_time)            
 
         print(BeesUtils.color(f"\nSimulation of {simulation_count} games completed."))
-        print(f"Player 1 wins: {player1_wins}, Player 2 wins: {player2_wins}, Draws: {draws}")
-        print(f"Start time: {timestamp2.strftime(time_format)}, End time: {BeesUtils.timestamp().strftime(time_format)}")
+        print(BeesUtils.color(f"Player 1 wins: {player1_wins},", "red"), end=" ")
+        print(BeesUtils.color(f"Player 2 wins: {player2_wins},", "blue"), f"Draws: {draws}")
+
+        for key, value in win_direction_dict.items():
+            print(f"{key}: {value}", end=" | ")
+
+        print(f"\nStart time: {timestamp2.strftime(time_format)}, End time: {BeesUtils.timestamp().strftime(time_format)}")
         print(f"Simulations took {elapsed_formatted}")
 
-    else:        
+    ###### End of Simulation mode #######
+
+    else:        # if sim mode is not on
 
         game_loop(grid, move_dict, game_manager)
 
@@ -332,7 +352,10 @@ def main_game(game_manager) -> None:
 
 def external_loop():
     """I'm not sure it really matters much to initialize the game manager outside the main game loop. \n
-    At least I get to use the play_again function. """                         
+    At least I get to use the play_again function. """
+
+    logging.debug("External loop initialized. Printing environment variables.")
+    BeesUtils.print_env_variables()                       
     
     while True:                                            
 

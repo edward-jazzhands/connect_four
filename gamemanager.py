@@ -25,6 +25,9 @@ class GameManager:
         self.player1_moves = 0
         self.player2_moves = 0
         self.total_moves = 0
+        self.winner_direction = None                 # for display victory direction
+        self.win_starting_column = None
+
         self.initialization_message()
 
     
@@ -84,7 +87,7 @@ class GameManager:
         self.player2_type = player2
     
     
-    def move_system(self, move_dict: Dict, grid: object) -> object:
+    def move_system(self, move_dict: Dict, grid: object, hide_board: bool) -> object:
         """ This function checks if the turn_token is on a human or computer player. \n
         It then calls the appropriate function to get the current cell. """ 
         # Also important to note here that the functions in InputFuncs do not actually care who's turn it is.
@@ -104,7 +107,8 @@ class GameManager:
 
         logging.debug(f"Player type: {player_type}")
 
-        print(f"\n {sign} | Move #: {player_moves+1}\n")
+        if not hide_board:
+            print(f"\n {sign} | Move #: {player_moves+1}\n")
             
         if player_type == PlayerType.HUMAN:       
             current_cell = InputFuncs.human_move(self.turn_token.value, move_dict, grid)
@@ -120,6 +124,20 @@ class GameManager:
 
         return current_cell
     
+    def update_win_counters(self, direction: str) -> None:
+        """ This function increments the win counters based on the direction of the win. """
+
+        if self.winner_direction == "horizontal":
+            self.horizontal_wins += 1
+        elif self.winner_direction == "vertical":
+            self.vertical_wins += 1
+        elif self.winner_direction == "down-right":
+            self.down_right_wins += 1
+        elif self.winner_direction == "down-left":
+            self.down_left_wins += 1
+        else:
+            logging.error(f"Error in update_win_counters. Invalid direction: {direction}")
+    
     
 def choose_size_input_bridge() -> Tuple[int, int]:
     """This is here so I can keep input functions in their own module. \n
@@ -127,6 +145,14 @@ def choose_size_input_bridge() -> Tuple[int, int]:
 
     rows, columns = InputFuncs.choose_size()
     return rows, columns
+
+
+def winner_direc_and_col(direction, column) -> None:
+    """ This function just stores the winner's direction and column in memory. """
+    
+    logging.debug(f"Winner found in direction {direction}, starting in {column}")
+    # This is just a placeholder for now. I'm not sure what I want to do with this yet. ##
+    # somehow store them here for use later....
 
 
 

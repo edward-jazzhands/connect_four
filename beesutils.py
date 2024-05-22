@@ -68,7 +68,7 @@ class BeesUtils:
         Choose from: DEBUG, INFO, WARNING, ERROR, CRITICAL (case is not sensitive)
         usage: BeesUtils.logging_initializer("DEBUG", "log_file.log") """
 
-        format: str = "%(asctime)s - %(levelname)s - %(message)s"
+        format: str = "%(asctime)s - %(levelname)s - %(message)s"      #   <-- Change this to modify the log format
 
         try:
             logger_level = LogLevel[level.upper()].value        # Convert the string level to an enum member and get its value
@@ -120,9 +120,12 @@ class BeesUtils:
         """ Pass no arguments to print the default list of environment variables.
         Pass "all" to print all environment variables. Pass a list of strings to print specific variables. """
 
-        if custom_variables == "all":
+        if isinstance(custom_variables, str) and custom_variables.lower() == "all":
             variables_to_print = os.environ.keys()
-            
+
+        elif isinstance(custom_variables, list):
+            variables_to_print = custom_variables
+                
         elif custom_variables is None:
             variables_to_print = [
                 "NUMBER_OF_PROCESSORS",
@@ -133,18 +136,14 @@ class BeesUtils:
                 "USERNAME",
             ]
         else:
-            variables_to_print = custom_variables
-
+            raise ValueError("Invalid argument. Pass 'all' to print all environment variables, or a list of strings to print specific variables.")
 
         print(BeesUtils.color(f"Current working directory: {os.getcwd()}  |  Platform: {sys.platform}", "cyan"))
-
         for key in variables_to_print:
             if key in os.environ:
                 print(BeesUtils.color(f"{key} is {os.environ[key]}", "cyan"))
-                ## Remember that os.environ[key] is the same as saying 'the value associated with that key'.
             else:
                 print(BeesUtils.color(f"{key} is not in the environment variables.", "red"))
-
 
     @staticmethod
     def set_current_dir() -> None:
