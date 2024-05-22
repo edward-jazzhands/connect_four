@@ -69,42 +69,41 @@ def check_win(grid: object, game_manager: object) -> CellState:
         is_in_boundaries = 0 <= row_boundary < grid.rows and 0 <= col_boundary < grid.columns
         return is_in_boundaries
 
-    def check_line(start_row: int, start_col: int, direction_name: str) -> CellState:
+    def check_line(cell: object, direction_name: str) -> CellState:
         """ Checks for a streak of four in a line. This runs after is_valid_cell. """
 
         dr, dc = direction_dict[direction_name]                          # unpacks the direction tuple
-        cell_state = grid_matrix[start_row][start_col].cell_state
-        if cell_state == CellState.EMPTY:                               
+        if cell.cell_state == CellState.EMPTY:                               
             return None                                                  # break out function if empty
 
-        logging.debug(f"Cell not empty, potential line is in boundaries. Checking {direction_name} at {start_row}, {start_col}")
+        logging.debug(f"Cell not empty, potential line is in boundaries. Checking {direction_name} at ({cell.x}, {cell.y})")
         
         # This breaks out the function if it hits a cell that is not the same state as the original.
         for i in range(1, 4):
-            if grid_matrix[start_row + i * dr][start_col + i * dc].cell_state != cell_state:
+            if grid_matrix[cell.x + i * dr][cell.y + i * dc].cell_state != cell.cell_state:
                 return None
             
         # thus if we didn't return None, then we have a winner.
-        logging.debug(BeesUtils.color(f"Winner found in direction {direction_name} starting in column {start_col}"))
+        logging.debug(BeesUtils.color(f"Winner found in direction {direction_name} starting at ({cell.x}, {cell.y})"))
         game_manager.winner_direction = direction_name
-        game_manager.win_starting_column = start_col
-        return cell_state   
+        game_manager.win_starting_column = cell.y
+        return cell.cell_state   
     
     #### End of Helpers ######
     
     for row in range(grid.rows):
         for col in range(grid.columns):
             
-            cell = grid_matrix[row][col]
+            cell: object = grid_matrix[row][col]
             if cell.cell_state == CellState.EMPTY:                          # Skip if current cell is empty
                 continue                                               
             else:
                 for direction_name, direction_tuple in direction_dict.items():
                     dr, dc = direction_tuple
-                    row_boundary = row + 3 * dr                             # breaking out the math just makes it easier to understand
-                    col_boundary = col + 3 * dc
+                    row_boundary: int = row + 3 * dr                             # breaking out the math just makes it easier to understand
+                    col_boundary: int = col + 3 * dc
                     if is_valid_cell(row_boundary, col_boundary):           # check if (current cell + 3) is in bounds
-                        result = check_line(row, col, direction_name)       # pass in start coordinate and direction
+                        result = check_line(cell, direction_name)       # pass in start coordinate and direction
                         if result:
                             return result        # returns CellState.PLAYER1 or CellState.PLAYER2 if winner is found 
 
