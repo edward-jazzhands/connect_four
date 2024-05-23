@@ -46,69 +46,6 @@ def game_display(grid: object) -> None:
     print("\n")
 
 
-############   Check for Winner Function    ############
-        
-def check_win(grid: object, game_manager: object) -> CellState:
-    """Checks the grid for a winner. If winner, returns CellState of winner, otherwise CellState.EMPTY."""
-
-    logging.debug(f"Starting check_win function.")
-
-    grid_matrix = grid.grid_matrix
-
-    direction_dict = {
-        "horizontal": (0, 1),             # right
-        "vertical": (1, 0),               # down
-        "down-right": (1, 1),             # down-right
-        "down-left": (1, -1)              # down-left
-    }
-
-    #### Helpers ####
-    def is_valid_cell(row_boundary: int, col_boundary: int) -> bool:
-        """Checks if a cell is within the grid boundaries."""
-
-        is_in_boundaries = 0 <= row_boundary < grid.rows and 0 <= col_boundary < grid.columns
-        return is_in_boundaries
-
-    def check_line(cell: object, direction_name: str) -> CellState:
-        """ Checks for a streak of four in a line. This runs after is_valid_cell. """
-
-        dr, dc = direction_dict[direction_name]                          # unpacks the direction tuple
-        if cell.cell_state == CellState.EMPTY:                               
-            return None                                                  # break out function if empty
-
-        logging.debug(f"Cell not empty, potential line is in boundaries. Checking {direction_name} at ({cell.x}, {cell.y})")
-        
-        # This breaks out the function if it hits a cell that is not the same state as the original.
-        for i in range(1, 4):
-            if grid_matrix[cell.x + i * dr][cell.y + i * dc].cell_state != cell.cell_state:
-                return None
-            
-        # thus if we didn't return None, then we have a winner.
-        logging.debug(BeesUtils.color(f"Winner found in direction {direction_name} starting at ({cell.x}, {cell.y})"))
-        game_manager.winner_direction = direction_name
-        game_manager.win_starting_column = cell.y
-        return cell.cell_state   
-    
-    #### End of Helpers ######
-    
-    for row in range(grid.rows):
-        for col in range(grid.columns):
-            
-            cell: object = grid_matrix[row][col]
-            if cell.cell_state == CellState.EMPTY:                          # Skip if current cell is empty
-                continue                                               
-            else:
-                for direction_name, direction_tuple in direction_dict.items():
-                    dr, dc = direction_tuple
-                    row_boundary: int = row + 3 * dr                             # breaking out the math just makes it easier to understand
-                    col_boundary: int = col + 3 * dc
-                    if is_valid_cell(row_boundary, col_boundary):           # check if (current cell + 3) is in bounds
-                        result = check_line(cell, direction_name)       # pass in start coordinate and direction
-                        if result:
-                            return result        # returns CellState.PLAYER1 or CellState.PLAYER2 if winner is found 
-
-    return CellState.EMPTY                       # defaults to CellState.EMPTY if no winner is found
-
 
 #############    General game functions    ##############
 
@@ -134,18 +71,6 @@ def create_move_dict(grid: object) -> dict:
         move_dict[ascii_uppercase[col]] = col
 
     return move_dict 
-
-
-def update_cell(current_cell: object, player: PlayerType):
-    """ This function updates the cell with the current player's piece."""
-
-    try:
-        current_cell.cell_state = CellState(player.value)
-        logging.debug(f"Placing {player} {current_cell}  in cell {ascii_uppercase[current_cell.y]}{current_cell.x+1}")
-    
-    except Exception as e:
-        logging.error(f"Error updating cell: {e}")
-        raise e
 
 
 #############   START OF MAIN GAME   ##############
@@ -225,15 +150,15 @@ def main_game(game_manager) -> None:
 
             current_cell: object = game_manager.move_system(move_dict, grid, hide_board)       # where the auto-magic happens
 
-            # update the board with the cell from move_system, and the current player token
-            update_cell(current_cell, game_manager.turn_token)
+            # update the board with the cell we got from move_system
+            game_manager.update_cell(current_cell)
 
-            game_manager.increment_moves()                                 # increment the move counter              
-            winner: CellState = check_win(grid, game_manager)         # returns CellState.EMPTY if no winner
+            game_manager.increment_moves()                                         # increment the move counter              
+            winner: CellState = game_manager.check_win(grid)                       # returns CellState.EMPTY if no winner
 
             ################ END OF CORE GAME LOOP ################
 
-            if winner != CellState.EMPTY:                                  # if there is a winner
+            if winner != CellState.EMPTY:                                        # if there is a winner
                 
                 if not ultrasim:
                     game_display(grid)                                         # print the final display

@@ -8,9 +8,32 @@ from cfenums import TurnToken, PlayerType, CellState
 
 from beesutils import BeesUtils
 
+"""Plan to implement computer AI:
+1) easy: computer checks if possible victory for both players. If it sees its own victory, take it. If it sees the opponent's victory, block it.
+2) also easy: prioritize the center columns.
+3) medium: look ahead one move. If it sees its next move will lead to the opponent winning, it will avoid that move.
+4) hard: heuristics and minimax algorithm. """
+
+
+
 class InputFuncs:
 
-    ######## Move functions ########                  
+    ######## Move functions ########
+
+
+    @staticmethod
+    def check_column(move_dict: dict, grid: object, column_number: int) -> object:
+        """ This scans from the bottom up and returns the first empty cell it hits.
+        This is actually more efficient than scanning from the top down because we don't need to keep a running list of empty cells."""
+
+        grid_matrix = grid.grid_matrix
+
+        for row in range(grid.rows - 1, -1, -1):                       # scans the column from the bottom up
+
+            current_cell = grid_matrix[row][column_number]             # iterate through the column              
+            if current_cell.cell_state == CellState.EMPTY:             # as soon as it hits an empty cell,
+                return current_cell                                    # return the cell
+                  
     
     @staticmethod
     def human_move(player: int, move_dict: dict, grid: object) -> object:
@@ -30,52 +53,64 @@ class InputFuncs:
             column_index: int = move_dict[move]
             logging.debug(f"column_index: {column_index}")
 
-            column_cells = []
-            for row in range(grid.rows):
-                cell = grid.grid_matrix[row][column_index]          # builds list of just that column
-                if cell.cell_state == CellState.EMPTY:
-                    column_cells.append(cell)
-                    logging.debug(f"Empty cell found: {cell}   x, y = {cell.x}, {cell.y}")
+            lowest_cell = InputFuncs.check_column(move_dict, grid, column_index)    # check the column for the lowest empty cell
 
-            if not column_cells:                                    # if there's no empties then column is full
+            if not lowest_cell:                                                     # did not find an empty cell
                 print("That column is full. Try again.")
                 continue
-            
-            lowest = column_cells[-1]
-            logging.debug(f"lowest empty cell coordinates: {lowest.x}, {lowest.y}")
-            return lowest
+
+            logging.debug(f"lowest empty cell coordinates: {lowest_cell.x}, {lowest_cell.y}")
+            return lowest_cell
+        
         
     @staticmethod    
     def computer_move(move_dict: dict, grid: object) -> object:
-        """ This is identical to the human_move function except it picks a random column. \n
-        It takes the same arguments and returns the same object type."""
+        """ """
 
-        # This is where the computer's move logic would go. 
-        # For now, it just picks a random column.
-        # The loop is here so it will keep picking columns until it finds an empty one.
+        # column_index = random.choice(list(move_dict.values()))          # pick random column from move dictionary
 
-        while True:
+        grid_matrix = grid.grid_matrix
 
-            column_index = random.choice(list(move_dict.values()))          # pick random column from move dictionary
-            logging.debug(BeesUtils.color(f"Computer chose column {column_index}", "green"))
-            
-            column_cells = []
-            for row in range(grid.rows):
-                cell = grid.grid_matrix[row][column_index]                  
-                if cell.cell_state == CellState.EMPTY:
-                    column_cells.append(cell)
-                    logging.debug(f"Empty cell found: {cell}   x, y = {cell.x}, {cell.y}")
+        """
+        start(first): (grid.rows - 1) means it starts at the bottom.  (number of rows minus 1, because zero indexing)
+        stop(middle): (-1) means it stops at 0.
+        step(last): (-1) means it goes up (or backwards). 
+        Thus range(grid.rows - 1, -1, -1) means it starts at the bottom and goes up to the top. """
 
-            if not column_cells:                                            
-                logging.debug(BeesUtils.color("Computer tried to pick full column. Choosing again.", "red"))
-                continue 
+        def get_possible_moves() -> list:
+            """ generates a list of possible moves based on the current board state. """
 
-            lowest = column_cells[-1]
-            logging.debug(f"lowest empty cell coordinates: {lowest.x}, {lowest.y}")
-            return lowest
+            possible_moves = []                                     
+            for column_number in move_dict.values():                  # for each column in the move dictionary
+                lowest_cell = InputFuncs.check_column(move_dict, grid, column_number)    # check the column for the lowest empty cell
+                if lowest_cell:                                       # if it found an empty cell
+                    possible_moves.append(lowest_cell)                # add the cell to the possible moves list
+
+            return possible_moves                                                    
+        
+        # 4) build list of outcomes for each move
+        # 5) choose best outcome
+        # 6) if can't see a good move, choose random column
+        # 7) return the lowest empty cell in the chosen column
+
+        # 1) deep clone the board
+        cloned_grid = deepcopy(grid)
+
+        # 2) generate list of possible moves (the lowest empty cell in each column)
+        possible_moves = get_possible_moves()
+        logging.debug(f"Computer's possible_moves list: {possible_moves}")
+
+        # 3) attempt each possible move and build a list of outcomes
+        for cell in possible_moves:
+            cloned_grid = deepcopy(grid)
+            cloned_grid.apply_move(cell.x, cell.y)
+            # evaluate the outcome of the move
+
+
+        return
         
 
-    ######## Setup functions ########
+    ################### Setup functions #####################
         
     @staticmethod
     def choose_size() -> Tuple[int, int]:
@@ -166,3 +201,62 @@ class InputFuncs:
                 continue
             else:
                 return player1, player2
+            
+
+
+
+
+def computer_move(move_dict: dict, grid: object) -> object:
+    """This function generates a computer's move based on the given move dictionary and grid.
+    It returns the lowest empty cell in the chosen column."""
+
+    # 1) Deep clone the board
+    cloned_grid = deepcopy(grid)
+
+    # 2) Generate list of possible moves
+    possible_moves = generate_possible_moves(move_dict, cloned_grid)
+
+    # 3) Attempt each possible move and build a list of outcomes
+    outcomes = []
+    for column_index, row_index in possible_moves:
+        # Clone the board and apply the move
+        cloned_board = deepcopy(cloned_grid)
+        cloned_board.apply_move(column_index, row_index)
+
+        # Evaluate the outcome of the move
+        outcome = evaluate_outcome(cloned_board)
+        outcomes.append((column_index, row_index, outcome))
+
+    # 4) Choose the best outcome
+    best_outcome = max(outcomes, key=lambda x: x[2])
+    best_column_index, best_row_index, best_outcome_type = best_outcome
+
+    # 5) If no good move, choose random column
+    if best_outcome_type == "no_good_move":
+        column_index = random.choice(list(move_dict.values()))
+        lowest_empty_cell = get_lowest_empty_cell(column_index, cloned_grid)
+        return lowest_empty_cell
+
+    # Return the lowest empty cell in the chosen column
+    return best_row_index, best_column_index
+
+def generate_possible_moves(move_dict: dict, grid: object) -> list:
+    """Generate a list of possible moves based on the current board state."""
+    possible_moves = []
+    for column_index in move_dict.values():
+        row_index = get_lowest_empty_cell(column_index, grid)
+        if row_index is not None:
+            possible_moves.append((column_index, row_index))
+    return possible_moves
+
+def get_lowest_empty_cell(column_index: int, grid: object) -> int:
+    """Get the lowest empty cell in the specified column."""
+    for row_index in range(grid.rows - 1, -1, -1):
+        if grid.grid_matrix[row_index][column_index].cell_state == CellState.EMPTY:
+            return row_index
+    return None
+
+def evaluate_outcome(board_state: object) -> str:
+    """Evaluate the outcome of the current board state."""
+    # Implement your logic to evaluate the outcome (e.g., win, block, no_good_move)
+    pass
