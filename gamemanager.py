@@ -141,11 +141,17 @@ class GameManager:
             logging.error(f"Error in update_win_counters. Invalid direction: {direction}")
 
 
-    def update_cell(self, current_cell: object):
+    def update_cell(self, current_cell: object, condition: bool = True):
         """ This function updates the cell with the current player's piece. 
         Note: This works with the cloned grid as well. """
 
-        player_num = self.turn_token.value
+        if condition:
+            player_num = self.turn_token.value
+        else:
+            if self.turn_token == TurnToken.PLAYER1:
+                player_num = TurnToken.PLAYER2.value
+            else:
+                player_num = TurnToken.PLAYER1.value
         logging.debug(BeesUtils.color(f"current_cell: {current_cell}"))
 
         try:
@@ -158,7 +164,7 @@ class GameManager:
 
    
     def computer_move(self, move_dict: dict, grid: object) -> object:
-        """ """
+        """ Controls the computer's logic for making a move. """
 
         grid_matrix = grid.grid_matrix
 
@@ -172,9 +178,29 @@ class GameManager:
                     possible_moves.append(lowest_cell)                # add the cell to the possible moves list
                 else:
                     possible_moves.append("FULL")                     # if the column is full, add "full" to the list
-            return possible_moves                                                    
+            return possible_moves   
 
-        # 1) generate list of possible moves (the lowest empty cell in each column)
+        def attempt_possible_moves(condition: bool = True) -> list:
+            """ This function attempts each possible move and builds a list of outcomes. """
+
+            result_list = []                                        
+            for move in possible_moves:                            # possible_moves is a list of cells, or the string "full"
+                if move != "FULL":
+                    cloned_grid = deepcopy(grid)                                 # clone the grid each time to start fresh
+                    cloned_cell = cloned_grid.grid_matrix[move.x][move.y]        # get the cloned cell
+
+                    logging.debug(f"Cloning grid and cell at {move.x}, {move.y}. Cloned cell: {cloned_cell}")
+                    self.update_cell(cloned_cell, condition)
+                    
+                    result = self.check_win(cloned_grid)                  # check cloned grid for winner
+                    result_list.append(result)
+                    if result != CellState.EMPTY:                  # if a winner is found, break out of the loop early
+                        return result_list
+                else:
+                    result_list.append("FULL")                     # result_list is a list of CellStates
+            return result_list
+
+        # generate list of possible moves (the lowest empty cell, in each column)
         possible_moves = get_possible_moves()
         for move in possible_moves:
             if move != "FULL":
@@ -182,44 +208,38 @@ class GameManager:
             else:
                 logging.debug(f"Column is full.")
 
-
-        # 2) attempt each possible move and build a list of outcomes
-        result_list = []                                        
-        for move in possible_moves:                            # possible_moves is a list of cells, or a string "full"
-            if move != "FULL":
-                cloned_grid = deepcopy(grid)                                 # clone the grid each time to start fresh
-                cloned_cell = cloned_grid.grid_matrix[move.x][move.y]        # get the cloned cell
-
-                logging.debug(f"Cloning grid and cell at {move.x}, {move.y}. Cloned cell: {cloned_cell}")
-                self.update_cell(cloned_cell)
-                
-                result = self.check_win(cloned_grid)                  # check cloned grid for winner
-                result_list.append(result)
-                if result != CellState.EMPTY:                  # if a winner is found, break out of the loop early
-                    break
-            else:
-                result_list.append("FULL")                     # result_list is a list of CellStates
+        # attempt each possible move for their own turn and build a list of outcomes
+        result_list = attempt_possible_moves()
 
         # We now have a result_list of CellStates representing the outcome of each possible move.
         # EMPTY = no winner, PLAYER1 = player 1 wins, PLAYER2 = player 2 wins.
         # Each index in the list corresponds to the column index. 
         best_move = None
 
-        # 3) find possible winners
+        # enumerate over list of results
         for i, result in enumerate(result_list):       # i is the column index
             logging.debug(f"Column {i}: {result}")
             if result != CellState.EMPTY and result != "FULL":                     # if a winner is found
                 logging.debug(BeesUtils.color(f"Winner found in column {ascii_uppercase[i]}."))
-                best_move = possible_moves[i]          # this is correct because possible_moves is the list of cell objects
-                break       
+                best_move = possible_moves[i]          # this is correct, possible_moves is the list of cell objects
+                return best_move       
 
-        """ remember the cloned grid is getting updated with whoevers turn it is right now.
+        """ The cloned grid is getting updated with whoevers turn it is right now.
         That means if it finds a winner on the clone grid, that must mean the current player can win on this turn.
         It is not possible for an opponent's win to be found on the cloned grid with our method, since the opponent
         is not the one placing pieces.
         Thus, possible_winners will only contain the current player's winning moves. """
 
-        # 4) if can't see a good move, choose random column
+        # if we're here we didn't find a winner, so we need to check for the opponent's winning moves
+        result_list_opp = attempt_possible_moves(False)     # attempt each move for the opponent
+        for i, result in enumerate(result_list_opp):       # i is the column index
+            logging.debug(f"Column {i}: {result}")
+            if result != CellState.EMPTY and result != "FULL":                     # if a winner is found
+                logging.debug(BeesUtils.color(f"Winner found for opponent in column {ascii_uppercase[i]}."))
+                best_move = possible_moves[i]          # this is correct, possible_moves is the list of cell objects
+                break
+
+        # if can't see a good move, choose random column
         if best_move is None:
             # Choose a random column
             avail_columns = [move for move in possible_moves if move != "FULL"]
@@ -270,7 +290,7 @@ class GameManager:
                 
             # thus if we didn't return None, then we have a winner.
             logging.debug(BeesUtils.color(f"Winner found in direction {direction_name} starting at ({cell.x}, {cell.y})"))
-            self.winner_direction = direction_name
+            self.winner_direction = direction_name                  # this is the only reason this is a self method
             self.win_starting_column = cell.y
             logging.debug(BeesUtils.color(f"self.winner_direction set to: {self.winner_direction}", "cyan"))
             logging.debug(BeesUtils.color(f"self.win_starting_column set to: {self.win_starting_column}", "cyan"))
