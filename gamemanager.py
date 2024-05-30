@@ -9,14 +9,21 @@ import random
 from cfenums import TurnToken, PlayerType, CellState
 
 
-from inputfuncs import InputFuncs
-from beesutils import BeesUtils
+import inputfuncs
+import complogic
+import beesutils
+
+# TO DO
+# Create an enum array inside the grid class
+# make complogic use the enum array instead of the grid_matrix
 
 
 
 class GameManager:
     """ Manages the game state. Also contains a bunch of functions that are called by the main game loop.
-    Acts as an intermediary between the main game loop and the input functions. """
+    Acts as an intermediary between the main game loop and the other modules. """
+
+    ########## Initialization Methods ##########
 
 
     def __init__(self):
@@ -26,106 +33,71 @@ class GameManager:
         self.turn_token = TurnToken.PLAYER1          # keeps track of whose turn it is
         self.player1_moves = 0
         self.player2_moves = 0
-        self.total_moves = 0
+        self.remaining_cells = 0
         self.winner_direction = None                 # for display victory direction
         self.win_starting_column = None
-
         self.initialization_message()
+
+
+    def init_move_calculators(self, grid: object, move_dict: dict) -> None:
+        """ Initializes the Move Calculators. """
+
+        self.comp_move_calc = complogic.ComputerMoveCalculator(self, grid, move_dict)
+        self.human_move_calc = inputfuncs.HumanMoveReturner(self, grid, move_dict)
+        logging.debug(beesutils.color(f"Move Calculators initialized."))
 
     
     @staticmethod
     def initialization_message() -> None:
 
-        logging.debug(BeesUtils.color(f"GameManager initialized."))
+        logging.debug(beesutils.color(f"GameManager initialized."))
 
-    @staticmethod
-    def play_again() -> bool:
-        """ This is called in the external loop if main_game() is exited. """
 
-        while True:
-            logging.debug(BeesUtils.color(f"play_again called."))
-            play_again = input("Would you like to play again? (Y/N): ")
-            play_again = play_again.upper()
-            if play_again == "Y":
-                logging.debug(BeesUtils.color(f"Game should be restarting..."))
-                return True
-            elif play_again == "N":
-                logging.debug(BeesUtils.color(f"Game Manager stopped.", "red"))       
-                return False
-            else:
-                print("Invalid input. Please enter Y or N.")
-                continue
+    ##############  General Self-Methods  ##############
+
 
     def switch_player(self) -> None:
         """ Switches the current player. """
-        logging.debug(BeesUtils.color(f"Switching players...", "cyan"))
+        logging.debug(beesutils.color(f"Switching players...", "cyan"))
 
         if self.turn_token == TurnToken.PLAYER1:
             self.turn_token = TurnToken.PLAYER2
         elif self.turn_token == TurnToken.PLAYER2:
             self.turn_token = TurnToken.PLAYER1
 
-    def increment_moves(self) -> None:
+    def move_counter(self) -> None:
         """ Increments the number of moves made by the current player. """
 
         if self.turn_token == TurnToken.PLAYER1:
             self.player1_moves += 1
-            self.total_moves += 1
+            self.remaining_cells -= 1
         elif self.turn_token == TurnToken.PLAYER2:
             self.player2_moves += 1
-            self.total_moves += 1
+            self.remaining_cells -= 1
 
-    def reset_moves(self) -> None:
-        """ Resets the number of moves made by each player. """
+    def reset_game(self, total_cells) -> None:
+        """ Resets the game state back to the beginning. """
 
         self.player1_moves = 0
         self.player2_moves = 0
-        self.total_moves = 1
+        self.remaining_cells = total_cells
+        self.winner_direction = None
+        self.win_starting_column = None
+        self.turn_token = TurnToken.PLAYER1
 
-    def set_player_types(self):
+    def player_types_bridge(self):
 
-        player1, player2 = InputFuncs.choose_player_types()
+        player1, player2 = inputfuncs.choose_player_types()
         self.player1_type = player1
         self.player2_type = player2
-    
-    
-    def move_system(self, move_dict: Dict, grid: object, hide_board: bool) -> object:
-        """ This function checks if the turn_token is on a human or computer player. \n
-        It then calls the appropriate function to get the current cell. """ 
-        # Also important to note here that the functions in InputFuncs do not actually care who's turn it is.
-        # they just validate the move and return the cell.
 
-        logging.debug(f"Current player turn token: {self.turn_token}")
-        
-        if self.turn_token == TurnToken.PLAYER1:
-            player_type = self.player1_type
-            player_moves = self.player1_moves
-            sign = f"{BeesUtils.color("Player 1's turn ⬤", "red")}"
-            
-        else:
-            player_type = self.player2_type
-            player_moves = self.player2_moves
-            sign = f"{BeesUtils.color("Player 2's turn ⬤", "blue")}"
+    def choose_size_bridge(self) -> Tuple[int, int]:
 
-        logging.debug(f"Player type: {player_type}")
+        rows, columns = inputfuncs.choose_size()
+        self.remaining_cells = rows * columns
+        return rows, columns
 
-        if not hide_board:
-            print(f"\n {sign} | Move #: {player_moves+1}\n")
-            
-        if player_type == PlayerType.HUMAN:       
-            current_cell = InputFuncs.human_move(self.turn_token.value, move_dict, grid)
-            # note: I only pass in the turn token value so it displays in the input message.
-            # it has no effect on the core function.
 
-        elif player_type == PlayerType.COMPUTER:
-            current_cell = self.computer_move(move_dict, grid)
-
-        else:
-            logging.error(f"Error in move_system self.turn_token: {self.turn_token}")
-            current_cell = None
-
-        return current_cell
-    
     def update_win_counters(self, direction: str) -> None:
         """ This function increments the win counters based on the direction of the win. """
 
@@ -141,122 +113,91 @@ class GameManager:
             logging.error(f"Error in update_win_counters. Invalid direction: {direction}")
 
 
-    def update_cell(self, current_cell: object, condition: bool = True):
+    def update_cell(self, current_cell: object, updater_flip: bool = False) -> None:
         """ This function updates the cell with the current player's piece. 
-        Note: This works with the cloned grid as well. """
+        If bool is toggled to False, it will place the opponent's piece (opposite the current turn_token)"""
 
-        if condition:
+        logging.debug(f"Starting update_cell function. {repr(current_cell)} | {beesutils.color(f'updater_flip: {updater_flip}', 'orange')} ")
+
+        if not updater_flip:
             player_num = self.turn_token.value
-        else:
+        else:                                               # if updater_flip is turned on (set to True)
             if self.turn_token == TurnToken.PLAYER1:
                 player_num = TurnToken.PLAYER2.value
             else:
                 player_num = TurnToken.PLAYER1.value
-        logging.debug(BeesUtils.color(f"current_cell: {current_cell}"))
 
         try:
             current_cell.cell_state = CellState(player_num)
             logging.debug(f"Placing Player {player_num} {current_cell}  in cell {ascii_uppercase[current_cell.y]}{current_cell.x+1}")
 
         except Exception as e:
-            logging.error(f"Error updating cell: {e}, current cell: {current_cell}, cell state: {current_cell.cell_state}")
+            logging.error(f"Error updating cell: {e}, current cell: {repr(current_cell)}")
             raise e
-
-   
-    def computer_move(self, move_dict: dict, grid: object) -> object:
-        """ Controls the computer's logic for making a move. """
+        
+    @staticmethod
+    def check_column(grid: object, column_index: int) -> object:
+        """ This scans from the bottom up and returns the first empty cell it hits.
+        This is actually more efficient than scanning from the top down because we don't need to keep a running list of empty cells."""
 
         grid_matrix = grid.grid_matrix
 
-        def get_possible_moves() -> list:
-            """ generates a list of possible moves based on the current board state. """
+        for row in range(grid.rows - 1, -1, -1):                       # scans the column from the bottom up
+            current_cell = grid_matrix[row][column_index]              # iterate through the column              
+            if current_cell.cell_state == CellState.EMPTY:             # as soon as it hits an empty cell,
+                return current_cell                                    # return the cell
 
-            possible_moves = []                                     
-            for column_number in move_dict.values():                  # for each column in the move dictionary
-                lowest_cell = InputFuncs.check_column(move_dict, grid, column_number)    # check the column for the lowest empty cell
-                if lowest_cell:                                       # if it found an empty cell
-                    possible_moves.append(lowest_cell)                # add the cell to the possible moves list
-                else:
-                    possible_moves.append("FULL")                     # if the column is full, add "full" to the list
-            return possible_moves   
 
-        def attempt_possible_moves(condition: bool = True) -> list:
-            """ This function attempts each possible move and builds a list of outcomes. """
-
-            result_list = []                                        
-            for move in possible_moves:                            # possible_moves is a list of cells, or the string "full"
-                if move != "FULL":
-                    cloned_grid = deepcopy(grid)                                 # clone the grid each time to start fresh
-                    cloned_cell = cloned_grid.grid_matrix[move.x][move.y]        # get the cloned cell
-
-                    logging.debug(f"Cloning grid and cell at {move.x}, {move.y}. Cloned cell: {cloned_cell}")
-                    self.update_cell(cloned_cell, condition)
-                    
-                    result = self.check_win(cloned_grid)                  # check cloned grid for winner
-                    result_list.append(result)
-                    if result != CellState.EMPTY:                  # if a winner is found, break out of the loop early
-                        return result_list
-                else:
-                    result_list.append("FULL")                     # result_list is a list of CellStates
-            return result_list
-
-        # generate list of possible moves (the lowest empty cell, in each column)
-        possible_moves = get_possible_moves()
-        for move in possible_moves:
-            if move != "FULL":
-                logging.debug(f"Possible move: {move.x}, {move.y}")
-            else:
-                logging.debug(f"Column is full.")
-
-        # attempt each possible move for their own turn and build a list of outcomes
-        result_list = attempt_possible_moves()
-
-        # We now have a result_list of CellStates representing the outcome of each possible move.
-        # EMPTY = no winner, PLAYER1 = player 1 wins, PLAYER2 = player 2 wins.
-        # Each index in the list corresponds to the column index. 
-        best_move = None
-
-        # enumerate over list of results
-        for i, result in enumerate(result_list):       # i is the column index
-            logging.debug(f"Column {i}: {result}")
-            if result != CellState.EMPTY and result != "FULL":                     # if a winner is found
-                logging.debug(BeesUtils.color(f"Winner found in column {ascii_uppercase[i]}."))
-                best_move = possible_moves[i]          # this is correct, possible_moves is the list of cell objects
-                return best_move       
-
-        """ The cloned grid is getting updated with whoevers turn it is right now.
-        That means if it finds a winner on the clone grid, that must mean the current player can win on this turn.
-        It is not possible for an opponent's win to be found on the cloned grid with our method, since the opponent
-        is not the one placing pieces.
-        Thus, possible_winners will only contain the current player's winning moves. """
-
-        # if we're here we didn't find a winner, so we need to check for the opponent's winning moves
-        result_list_opp = attempt_possible_moves(False)     # attempt each move for the opponent
-        for i, result in enumerate(result_list_opp):       # i is the column index
-            logging.debug(f"Column {i}: {result}")
-            if result != CellState.EMPTY and result != "FULL":                     # if a winner is found
-                logging.debug(BeesUtils.color(f"Winner found for opponent in column {ascii_uppercase[i]}."))
-                best_move = possible_moves[i]          # this is correct, possible_moves is the list of cell objects
-                break
-
-        # if can't see a good move, choose random column
-        if best_move is None:
-            # Choose a random column
-            avail_columns = [move for move in possible_moves if move != "FULL"]
-            best_move = random.choice(avail_columns)
-
-        try:
-            logging.debug(BeesUtils.color(f"Computer's best move: {best_move.x}, {best_move.y}"))
-        except Exception as e:
-            logging.error(f"Error in computer_move: {e}, attempting {best_move}")
-        return best_move
+    #############  End of General methods   ############
+    #                                                  #
+    #################   Move system   ##################
     
-    ############   Check for Winner Function    ############
+    
+    def move_system(self, hide_board: bool) -> object:
+        """ This function checks if the turn_token is on a human or computer player. \n
+        It then calls the appropriate function and returns the chosen cell. """ 
 
-    def check_win(self, grid: object) -> CellState:
-        """Checks the grid for a winner. If winner, returns CellState of winner, otherwise CellState.EMPTY."""
 
-        logging.debug(f"Starting check_win function.")
+        logging.debug(f"Current player turn token: {self.turn_token}")
+        
+        if self.turn_token == TurnToken.PLAYER1:
+            player_type = self.player1_type
+            player_moves = self.player1_moves
+            sign = f"{beesutils.color("Player 1's turn ⬤", "red")}"
+            
+        else:
+            player_type = self.player2_type
+            player_moves = self.player2_moves
+            sign = f"{beesutils.color("Player 2's turn ⬤", "blue")}"
+
+        logging.debug(f"Player type: {player_type}")
+
+        if not hide_board:
+            print(f"\n {sign} | Move #: {player_moves+1}\n")
+            
+        if player_type == PlayerType.HUMAN:       
+            current_cell = self.human_move_calc.human_move()
+
+        elif player_type == PlayerType.COMPUTER:
+            current_cell = self.comp_move_calc.computer_move()      
+
+        else:
+            logging.error(f"Error in move_system. self.turn_token: {self.turn_token}", "red")
+            current_cell = None
+
+        return current_cell
+            
+    
+    ##############   End of Move System    #############
+    #                                                  #
+    ##########   Check for winner Function   ###########
+
+    def check_win(self, grid: object, test_mode: bool = False) -> CellState:
+        """Checks the grid for a winner. If winner, returns CellState of winner, otherwise CellState.EMPTY.
+        When test_mode is set to True, it will not update the winner_direction or win_starting_column variables. """
+
+        logging.debug(f"Starting check_win function. {beesutils.color(f'Test mode: {test_mode}', 'orange')} ")
+
 
         grid_matrix = grid.grid_matrix
 
@@ -280,8 +221,6 @@ class GameManager:
             dr, dc = direction_dict[direction_name]                          # unpacks the direction tuple
             if cell.cell_state == CellState.EMPTY:                               
                 return None                                                  # break out function if empty
-
-            logging.debug(f"Cell not empty, potential line is in boundaries. Checking {direction_name} at ({cell.x}, {cell.y})")
             
             # This breaks out the function if it hits a cell that is not the same state as the original.
             for i in range(1, 4):
@@ -289,12 +228,13 @@ class GameManager:
                     return None
                 
             # thus if we didn't return None, then we have a winner.
-            logging.debug(BeesUtils.color(f"Winner found in direction {direction_name} starting at ({cell.x}, {cell.y})"))
-            self.winner_direction = direction_name                  # this is the only reason this is a self method
-            self.win_starting_column = cell.y
-            logging.debug(BeesUtils.color(f"self.winner_direction set to: {self.winner_direction}", "cyan"))
-            logging.debug(BeesUtils.color(f"self.win_starting_column set to: {self.win_starting_column}", "cyan"))
-            return cell.cell_state   
+            logging.debug(beesutils.color(f"Winner found in direction {direction_name} starting at {repr(cell)}"))
+            if not test_mode:
+                self.winner_direction = direction_name                  # this is the only reason this is a self method
+                self.win_starting_column = cell.y
+                logging.debug(beesutils.color(f"self.winner_direction set to: {self.winner_direction}", "cyan"))
+                logging.debug(beesutils.color(f"self.win_starting_column set to: {self.win_starting_column}", "cyan"))
+            return cell.cell_state
         
         #### End of Helpers ######
         
@@ -307,32 +247,48 @@ class GameManager:
                 else:
                     for direction_name, direction_tuple in direction_dict.items():
                         dr, dc = direction_tuple
-                        row_boundary: int = row + 3 * dr                             # breaking out the math just makes it easier to understand
+                        row_boundary: int = row + 3 * dr                        # breaking out the math just makes it easier to understand
                         col_boundary: int = col + 3 * dc
                         if is_valid_cell(row_boundary, col_boundary):           # check if (current cell + 3) is in bounds
-                            result = check_line(cell, direction_name)       # pass in start coordinate and direction
+                            result = check_line(cell, direction_name)           # pass in start coordinate and direction
                             if result:
                                 return result        # returns CellState.PLAYER1 or CellState.PLAYER2 if winner is found 
 
         return CellState.EMPTY                       # defaults to CellState.EMPTY if no winner is found
     
     
-    """
-    start(first): (grid.rows - 1) means it starts at the bottom.  (number of rows minus 1, because zero indexing)
-    stop(middle): (-1) means it stops at 0.
-    step(last): (-1) means it goes up (or backwards). 
-    Thus range(grid.rows - 1, -1, -1) means it starts at the bottom and goes up to the top. """
+    ############# End of check_win function ############
+    #                                                  #
+    ################# Bridge functions #################
+
+    
+
+    ############## End of Bridge functions #############
+    #                                                  #
+    ####################   Extras  #####################
+
+
+    @staticmethod
+    def play_again() -> bool:
+        """ This is called in the external loop if main_game() is exited. """
+
+        while True:
+            logging.debug(beesutils.color(f"play_again called."))
+            play_again = input("Would you like to play again? (Y/N): ")
+            play_again = play_again.upper()
+            if play_again == "Y":
+                logging.debug(beesutils.color(f"Game should be restarting..."))
+                return True
+            elif play_again == "N":
+                logging.debug(beesutils.color(f"Game Manager stopped.", "red"))       
+                return False
+            else:
+                print("Invalid input. Please enter Y or N.")
+                continue
 
 
     
-    
-    
-def choose_size_input_bridge() -> Tuple[int, int]:
-    """This is here so I can keep input functions in their own module. \n
-    inputfuncs does not get imported into the main game script. gamemanager is a bridge."""
 
-    rows, columns = InputFuncs.choose_size()
-    return rows, columns
 
 
 
