@@ -1,3 +1,11 @@
+"""
+Module Name: cfenums.py
+
+    'CF Enums' stands for 'Connect Four Enums'. \n
+    Contains the 3 enums used in the Connect Four game. Needs to be in its own file so it can be imported and used in all the other modules.
+"""
+
+
 from enum import Enum
 
 class TurnToken(Enum):

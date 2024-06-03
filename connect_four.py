@@ -1,83 +1,29 @@
 import logging
-from typing import List, Tuple, Dict
-from enum import Enum
+from typing import *
 import random
 from collections import deque
 from datetime import datetime
 from string import ascii_uppercase
+import turtle
 
 from cfenums import PlayerType, CellState
-
 import beesutils
+from gridmaker import Grid, Cell
+from gamemanager import GameManager
+from display import Display
+from simmode import GameSimulator
 
-import gridmaker
-import gamemanager
 
 ####### GLOBAL VARIABLES ######
 
+time_format = "%H:%M:%S"                         ## for the timestamp.
 
-time_format = "%H:%M:%S"                         ## This is the format for the timestamp.
-
-beesutils.logging_initializer("DEBUG")           ## Set the logging level for the game.
-
-##########################################################
-
-class Display:
-    """ This class contains the display functions for the game. """
-
-    def __init__(self, grid: object):
-        self.grid = grid
-        self.show_heuristic = False
- 
-    def display_func(self) -> None:
-        """ This function handles the display of whatever grid is passed into it \n
-        Automatically adjusts the border based on the grid size. """
-
-        grid = self.grid                                        # this just makes the code easier to read
-        break_bar = "---"
-        
-        print("")
-        print("   ", break_bar * (grid.columns+1))              # adjusts the top bar based on the number of columns
-
-        for row in range(grid.rows):
-            print("   | ", end="")                              # prints the left bar of the grid
-
-            for column in range(grid.columns):
-                if not self.show_heuristic:
-                    print(f" {grid.grid_matrix[row][column]} ", end="")    # prints whatever object is at that location in the grid matrix
-                else:
-                    print(f" {grid.grid_matrix[row][column].heuristic_score} ", end="")
-
-            print(" |")                                         # prints the right bar of the grid
-        print("   ", break_bar * (grid.columns+1))              # bottom bar of the grid
-        print("    ", end="")
-
-        for i in range(grid.columns):
-            print(" ", ascii_uppercase[i], end="")              # prints the column letters at the bottom
-        print("\n")
-
-    def reset_display(self, grid) -> None:
-        """ Resets the display to the default state. """
-
-        self.grid = grid
-        self.show_heuristic = False
-
-    def show_heuristics(self) -> None:
-        """ This function toggles the display of heuristic scores on and off. """
-
-        if self.show_heuristic:
-            self.show_heuristic = False
-            print(beesutils.color("Heuristic scores turned off.", "green"))
-        else:
-            self.show_heuristic = True
-            print(beesutils.color("Heuristic scores turned on.", "green"))
+beesutils.logging_initializer("DEBUG")           ## can specifiy a log file here if needed. Check docstring for details.
 
 
 #############    General game functions    ##############
 
-
 def inform_user_about_debug() -> None:
-    """ This function informs the user about the debug mode. """
 
     print(beesutils.color("Debug mode is turned on. This will print extra information to the console."))
     print("If you would like to turn off debug mode then type 'off' or 'debug' and press Enter. Anything else continues.")
@@ -85,9 +31,10 @@ def inform_user_about_debug() -> None:
     if choice in ["off", "debug"]:
         beesutils.log_level_toggle()
 
-
-def create_move_dict(grid: object) -> dict:
-    """ Generates a connect-four move dictionary from whatever grid is passed into it. (Columns only)""" 
+def create_move_dict(grid: Grid) -> dict:
+    """ Generates a connect-four move dictionary from whatever grid is passed into it. (Columns only) \n
+    This could be in the Grid class, but the dictionary is different for every type of game so I figured it makes more sense
+    to have it here.""" 
 
     columns = grid.columns                          # This move dictionary is very simple. 
     move_dict = {}                                  # It goes A:0, B:1, C:2, etc.
@@ -100,37 +47,16 @@ def create_move_dict(grid: object) -> dict:
 
 #############   START OF MAIN GAME   ##############
 
-
-def main_game(game_manager) -> None:
-    """ This contains the main game loop and initialization. \n
-    game_manager is the object, gamemanager is the module. """
-
-    if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
-        inform_user_about_debug()                         
-
-    print("Connect Four game starting. ", beesutils.color("HINT:"), " Type 'debug' at any point to toggle DEBUG on or off.")
-    
-    game_manager.player_types_bridge()                                # sets self.player1_type and self.player2_type
-    logging.debug(f"Player 1: {game_manager.player1_type}, Player 2: {game_manager.player2_type}")    # PlayerType enum    
-
-    rows: int
-    columns: int
-    rows, columns = game_manager.choose_size_bridge()                 # Can be default or custom
-
-    grid: object = gridmaker.Grid(rows, columns)                 
-    logging.debug(beesutils.color(f"Grid initialized. grid.rows = {grid.rows}, grid.columns = {grid.columns}"))
-
-    move_dict: dict = create_move_dict(grid)                            # Format: A:0, B:1, C:2, etc.
-    logging.debug(beesutils.color(f"Move dictionary: {move_dict}"))     # scales automatically with grid size
-
-    game_display: object = Display(grid)
-    game_manager.init_move_calculators(grid, move_dict)                   # computer move calculator
+def main_game(game_manager: GameManager) -> None:
+    """ Contains the initialization, the main game loop function,
+    and controls running the simulation mode. """
 
 
     def game_loop(hide_board: bool = False, ultrasim: bool = False) -> CellState:
 
         if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
             # This just checks modifying a cell state and displaying it.
+            # This was one of the first debug checkers I built. It's not really needed anymore, but meh. Sanity checks are nice.
 
             current_cell = grid.grid_matrix[0][0]
             current_cell.cell_state = CellState.PLAYER1
@@ -151,13 +77,11 @@ def main_game(game_manager) -> None:
             ################ CORE GAME LOOP ################
 
             """ Some notes about the system:
-            The game_manager is toggling the turn token each loop with switch_player()
+            The game_manager is toggling the turn token each loop with its self-method switch_player()
             By default it starts on PLAYER1. When the move system is called, it will check the current turn token,
-            and then check whether that player is a human or computer. Then it will run the appropriate class.
-            Those classes handle the move validation. Then either way it returns the same thing: a cell object.
-            This system is great because its modular and automatic. In our game loop, we just call the move system
-            every time and the game manager takes care of the rest. We don't even need to pass any arguments.
-            The move calculators get initialized with the grid and the move dictionary, so they have everything they need."""
+            and then check whether that player is a human or computer, and sends it to the appropriate class.
+            Those classes handle the move validation. They both return a cell object, which the move system passes back here.
+            Once there's a chosen cell, the game_manager updates the cell and then runs the checking class."""
 
             if not hide_board:
                 game_display.display_func()                 # display the board
@@ -171,23 +95,27 @@ def main_game(game_manager) -> None:
                 if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
                 
                     while True:
-                        debug_wait = input("'debug': toggle, 'heuristic': show heuristics. Anything else continues: ").lower()
+                        debug_wait = input("avail: 'debug', 'heuristic', 'numpy' | Anything else continues: ").lower()
                         if debug_wait == "debug":
                             beesutils.log_level_toggle()
-                            continue
+                            break
                         elif debug_wait == "heuristic":
-                            game_display.show_heuristics()
-                            continue
+                            game_display.toggle_feature("heuristic")
+                            break
+                        elif debug_wait == "numpy":
+                            game_display.toggle_feature("numpy")
+                            break
                         else:
                             break
 
-            current_cell: object = game_manager.move_system(hide_board)       # where the auto-magic happens
+            current_cell: Cell = game_manager.move_system(hide_board)       # where the auto-magic happens
 
-            # update the board with the cell we got from move_system
+            # update the board and the numpy grid with the cell we got from move_system
             game_manager.update_cell(current_cell)
+            game_manager.update_numpy(current_cell)
 
-            game_manager.move_counter()                                            # keep track of moves made and remaining           
-            winner: CellState = game_manager.check_win(grid)                       # returns CellState.EMPTY if no winner
+            game_manager.move_counter()                                                 # keep track of moves made and remaining           
+            winner: CellState = game_manager.checking_system.check_win(grid)            # returns CellState.EMPTY if no winner
 
             ################ END OF CORE GAME LOOP ################
             #                                                     #
@@ -227,105 +155,64 @@ def main_game(game_manager) -> None:
                 game_manager.switch_player()                                # flips turn token
                 continue
     
-    ######### END OF GAME LOOP FUNCTION #########
+    ######### end of game loop function #########
     #                                           #
-    ######### Simulation mode section  ##########
+    #########    MAIN PROGRAM CORE     ##########
+
+
+    if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+        inform_user_about_debug()                         
+
+    print("Connect Four game starting. ", beesutils.color("HINT:"), " Type 'debug' at any point to toggle DEBUG on or off.")
+    
+    game_manager.player_types_bridge()                                  # sets self.player1_type and self.player2_type
+    logging.debug(f"Player 1: {game_manager.player1_type}, Player 2: {game_manager.player2_type}")    # PlayerType enum    
+
+    rows: int
+    columns: int
+    rows, columns = game_manager.choose_size_bridge()                   # Can be default or custom
+
+    grid: Grid = Grid(rows, columns)                 
+    logging.debug(beesutils.color(f"Grid initialized. grid.rows = {grid.rows}, grid.columns = {grid.columns}"))
+
+    move_dict: dict = create_move_dict(grid)                            # Format: A:0, B:1, C:2, etc.
+    logging.debug(beesutils.color(f"Move dictionary: {move_dict}"))     # scales automatically with grid size
+
+    game_display: Display = Display(grid)
+
+    game_manager.attach_grid(grid, move_dict)
+    game_manager.init_check_system()                                    # checking system class
+    game_manager.init_move_calculators()                                # move calculator classes for human and computer
+
+    """ Notes about initialization:
+    There's 5 things being initialized here:
+     1. The grid, 2. The move dictionary, 3. The display, 4. The checking system, 5. The move calculators.
+     All of them are classes except for the move dictionary, which is just a dictionary. """
 
     if game_manager.player1_type == PlayerType.COMPUTER and game_manager.player2_type == PlayerType.COMPUTER:
         
-        print(beesutils.color("Detected that both players are COMPUTER. Please enter the number of games to simulate."))
-        logging.debug(beesutils.color("Also note you are in DEBUG mode. It will pause every turn.", "cyan"))
-        logging.debug(beesutils.color("Toggle debug off to let it run automatically.", "cyan"))
-
-        while True:
-            simulation_count = input("Enter a number (or 'debug'): ")
-            if simulation_count == "debug":
-                beesutils.log_level_toggle()
-                continue
-            try:
-                simulation_count = int(simulation_count)
-                break
-            except ValueError:
-                print("Please enter a number.")
-
-        hide_board: bool = False
-        ultrasim: bool = False    
-
-        print("Would you like to hide the board during the game?", beesutils.color("Type 'Y/y' to hide the board."))
-        print("This is useful if you are running a large number of simulations.")
-        print(beesutils.color("Note that it will still show the final board at the end of each game.", "cyan"))
-        print(beesutils.color("Or if you want it to not show the board at ALL (for huge numbers of simulations), type 'ultrasim'.", "red"))
-        hide_board_inp = input(beesutils.color("'Y/y' to hide, 'ultrasim' hides all. Anything else shows board: ")).upper()
-        
-        if hide_board_inp == "Y":
-            hide_board = True  
-        elif hide_board_inp == "ULTRASIM":
-            hide_board = True
-            ultrasim = True
-        
-        player1_wins, player2_wins, draws = 0, 0, 0
-        win_direction_dict = {
-            "horizontal wins": 0,
-            "vertical wins": 0,
-            "down-right wins": 0,
-            "down-left wins": 0,
-        }           
-        timestamp2 = beesutils.timestamp()
-                              
-        for i in range(simulation_count):
-            game_result: CellState = game_loop(hide_board, ultrasim)   
-            print(f"Game {i+1} completed. Game result: {game_result.name}") 
-
-            if game_result == CellState.PLAYER1:
-                player1_wins += 1
-            elif game_result == CellState.PLAYER2:
-                player2_wins += 1
-            else:
-                draws += 1
-
-            if game_result != CellState.EMPTY:        # <-- I honestly have no idea why this line needs to be here but apparently it does
-                win_direction_dict[f"{game_manager.winner_direction} wins"] += 1
-
-            grid.reset_grid()                                                # reset the grid
-            game_display.reset_display(grid)                                 # reset the display
-            game_manager.reset_game(grid.total_cells)                        # reset the game manager
-            
-        elapsed_time: float = beesutils.elapsed_calc(timestamp2)
-        elapsed_formatted: str = beesutils.format_elapsed(elapsed_time)            
-
-        print(beesutils.color(f"\nSimulation of {simulation_count} games completed."))
-        print(beesutils.color(f"Player 1 wins: {player1_wins},", "red"), end=" ")
-        print(beesutils.color(f"Player 2 wins: {player2_wins},", "blue"), f"Draws: {draws}")
-
-        for key, value in win_direction_dict.items():
-            print(f"{key}: {value}", end=" | ")
-
-        print(f"\nStart time: {timestamp2.strftime(time_format)}, End time: {beesutils.timestamp().strftime(time_format)}")
-        print(f"Simulations took {elapsed_formatted}")
-
-    ###### End of Simulation mode #######
+        simulator = GameSimulator(game_manager, game_loop, game_display)
+        simulator.run_simulations()
 
     else:        # if sim mode is not on
 
         game_loop()
 
-
 #################################################################        
 
 def external_loop():
     """I'm not sure it really matters much to initialize the game manager outside the main game loop. \n
-    At least I get to use the play_again function. """
+    At least I get to use the play_again function. I suppose I could add in save games or a menu or something."""
 
     logging.debug("External loop initialized.")                     
     
     while True:                                            
 
-        game_manager = gamemanager.GameManager()      
+        game_manager = GameManager()      
         main_game(game_manager)  
         if not game_manager.play_again():
             print("Goodbye!")
             break
-
 
 if __name__ == "__main__":
     external_loop()

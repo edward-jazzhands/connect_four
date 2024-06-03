@@ -1,7 +1,17 @@
+"""
+Module Name: inputfuncs.py
+
+    Holds the HumanMoveReturner class and a few other functions related to Human input.
+"""
+
+from __future__ import annotations
+from typing import *
 import logging
-from string import ascii_uppercase
-from typing import Tuple
-import random
+
+if TYPE_CHECKING:
+    from gamemanager import GameManager
+    from gridmaker import Cell
+
 
 from cfenums import TurnToken, PlayerType, CellState
 
@@ -13,13 +23,13 @@ class HumanMoveReturner:
     """ Check's player's move against the move dictionary and the active grid.
     Returns the lowest empty cell in the column the player chooses. """
     
-    def __init__(self, game_manager: object, grid: object, move_dict: dict):
+    def __init__(self, game_manager: GameManager):
 
-        self.move_dict = move_dict
-        self.grid = grid
         self.game_manager = game_manager
+        self.move_dict = game_manager.move_dict
+        self.check_column = game_manager.checking_system.check_column
 
-    def human_move(self) -> object:
+    def human_move(self) -> Cell:
 
         while True:
             move = input(f"{self.game_manager.turn_token.name}, enter your move: ").upper()
@@ -34,7 +44,7 @@ class HumanMoveReturner:
             column_index: int = self.move_dict[move]
             logging.debug(f"column_index: {column_index}")
 
-            lowest_cell = self.game_manager.check_column(self.grid, column_index)    # check the column for the lowest empty cell
+            lowest_cell: Cell = self.check_column(column_index)    # check the column for the lowest empty cell
 
             if not lowest_cell:                                            # did not find an empty cell
                 print("That column is full. Try again.")

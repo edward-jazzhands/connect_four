@@ -1,7 +1,14 @@
+"""
+Module Name: beesutils.py
+
+    Contains all of Bee's custom utility functions. Designed to be re-usable across multiple projects.
+"""
+
+
 import sys
 import os
 import logging
-from typing import List, Tuple, Dict
+from typing import *
 from enum import Enum
 import random
 from collections import deque
@@ -198,7 +205,7 @@ def count_lines_of_code(file_path, remove_comments=False):
     """Count the number of non-blank lines in a file. Optionally remove comments."""
 
     non_blank_line_count = 0        
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r', encoding='utf-8') as file:
         lines = file.readlines()
     
     for line in lines:

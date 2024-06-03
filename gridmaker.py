@@ -1,10 +1,16 @@
-import logging
-from enum import Enum
+"""
+Module Name: gridmaker.py
+
+    This is a 'grid generator' script. I'm hoping this will over time become a class that can be imported into other games.
+"""
+
+import numpy as np
+from typing import *
 
 from cfenums import CellState
 
+# TO DO - add the NumPy array directly into the Grid class
 
-""" This is a 'grid generator' script. I'm hoping this will over time become a class that can be imported into other games. """
 
 ANSI = {
     "red": "\033[31m",
@@ -41,7 +47,9 @@ class Cell:
 
 class Grid:
     """ This initializes a grid of cells. \n
-    Takes number of rows and columns as arguments and generates grid dynamically."""
+    Takes number of rows and columns as arguments and generates grid dynamically. \n
+    There's also a method to reset the grid to its default state, a method to assign heuristic scores to each cell, \n
+    and a NumPy array included in the init."""
 
     def __init__(self, rows: int, columns: int):
         self.rows = rows                   
@@ -49,8 +57,9 @@ class Grid:
         self.total_cells = rows * columns
         self.grid_matrix = [[Cell(x, y) for y in range(columns)] for x in range(rows)]
         self.assign_heuristic_scores()
+        self.numpy_grid = np.zeros((rows, columns), dtype=int)
 
-        # The line above is the list comprehension version of the following
+        # A line above (self.grid_matrix) is the list comprehension version of the following
         # this is just here for educational purposes, I'm still new to list comprehensions
 
         # self.grid_matrix = []                          

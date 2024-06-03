@@ -1,38 +1,48 @@
+"""
+Module Name: complogic.py
+
+    This module holds the ComputerMoveCalculator class. This class is responsible for calculating the computer's move in Connect Four.
+"""
+
+from __future__ import annotations
+from typing import *
 import logging
-from typing import List, Tuple, Dict
-from enum import Enum
-from collections import deque
 from string import ascii_uppercase
 from copy import deepcopy
 import random
 
 from cfenums import TurnToken, PlayerType, CellState
-
 import beesutils
 
+if TYPE_CHECKING:
+    from gamemanager import GameManager
+    from gridmaker import Cell, Grid
 
 """ 
 To Do:
 -Implement MiniMax Algorithm
 -Convert entire function to a class    <- DONE
--Make a bitarray to use for logic instead of directly on the grid/cell objects."""
+-Make a numpy array to use for logic instead of directly on the grid/cell objects."""
 
 
 class ComputerMoveCalculator:
 
-    def __init__(self, game_manager: object, grid: object, move_dict: dict):
+    def __init__(self, game_manager: GameManager):
 
         self.game_manager = game_manager
-        self.grid = grid
-        self.move_dict = move_dict
-        self.enum_grid = []
+        self.grid = game_manager.grid
+        self.move_dict = game_manager.move_dict
+        self.numpy_grid = game_manager.grid.numpy_grid
+        self.check_column = game_manager.checking_system.check_column
+        self.check_win = game_manager.checking_system.check_win
+        self.update_cell = game_manager.update_cell
 
-    def get_possible_moves(self) -> list:
-        """ Returns either cell objects, or the string "FULL" if the column is full."""
+    def get_possible_moves(self) -> None:
+        """ Appends either cells or the string "FULL" to the possible_moves list."""
 
         self.possible_moves = []                            
         for column_number in self.move_dict.values():                  # for each column in the move dictionary
-            lowest_cell = self.game_manager.check_column(self.grid, column_number)    # check the column for the lowest empty cell
+            lowest_cell = self.check_column(column_number)    # check the column for the lowest empty cell
             if lowest_cell:                                            # if it found an empty cell
                 self.possible_moves.append(lowest_cell)                # add the cell to the possible moves list
                 logging.debug(f"Appending cell to possible moves: {repr(lowest_cell)}")
@@ -40,30 +50,31 @@ class ComputerMoveCalculator:
                 self.possible_moves.append("FULL")                     # if the column is full, add "full" to the list
         logging.debug(f"Stage 1) Possible moves: {self.possible_moves}")
 
-    # possible_moves is a list of cell objects. Each cell object is the lowest empty cell in the column.
+    # possible_moves is a list of cells. Each cell is the lowest empty cell in the column.
     # It can also be the string "FULL" if the column is full.   
     
 
-    def attempt_possible_moves(self, updater_flip: bool = False, check_above: bool = True) -> list:
+    def attempt_possible_moves(self, updater_flip: bool = False, check_above: bool = True) -> List[Union[CellState, str]]:
         """ This function attempts each possible move and returns a list which is the result of each move. \n
         updater_flip: if True attempts moves for the opponent in possible_moves list. \n
         check_above: if True, checks the cell above the current cell for the opponent's winning move. """
 
         logging.debug(f"Starting attempt_possible_moves. updater_flip: {updater_flip}, check_above: {check_above}")
 
-        def get_cloned_cell_above(move, cloned_grid):
+        def get_cloned_cell_above(move: Cell, cloned_grid: Grid) -> Optional[Cell]:
             """Checks if the current cell is in the top row. If not, returns the cell above it. If it is, returns None."""
 
             if move.x > 0:                                                  # 0 = top row
                 return cloned_grid.grid_matrix[move.x-1][move.y]            # x-1 = cell above
             return None
         
-        def update_and_check(cloned_cell, cloned_grid, updater_flip: bool) -> CellState:
+        def update_and_check(cloned_cell: Cell, cloned_grid: Grid, updater_flip: bool) -> CellState:
 
-            self.game_manager.update_cell(cloned_cell, updater_flip)             # updating cloned cell updates the cloned grid
-            return self.game_manager.check_win(cloned_grid, True)                # run check_win on cloned grid in Test mode
+            self.update_cell(cloned_cell, updater_flip)             # updating cloned cell updates the cloned grid
+            return self.check_win(cloned_grid, True)                # run check_win on cloned grid in Test mode
             
-        def process_result(move):
+        def process_result(move: Cell) -> Union[CellState, str]:
+            """This function returns the result of the move. \n"""
 
             cloned_cell_above = None 
             cloned_grid = deepcopy(self.grid)                                    # clone the grid each time to start fresh
@@ -113,7 +124,7 @@ class ComputerMoveCalculator:
         return result_list
     
     
-    def examine_list(self, result_list: list, player_str: str) -> object:     
+    def examine_list(self, result_list: List[Union[CellState, str]], player_str: str) -> Optional[Cell]:
         """Pass the result list and the player string (current or opposing). Allows us to reuse this function for both current and opposing player. \n
         Note that the player_str has no effect on the function. It was only added to ensure it's clear which player we're checking for."""
                                                                         
@@ -126,11 +137,12 @@ class ComputerMoveCalculator:
             player = self.game_manager.turn_token.name
 
         logging.debug(beesutils.color("RESULT LIST:", "cyan"))
+        
         for i, result in enumerate(result_list):           # i is the column index, result is a CellState or a string
+            logging.debug(beesutils.color(f"{player} ({player_str}): Column {ascii_uppercase[i]}({i}): {result}", "cyan")) 
 
-            logging.debug(beesutils.color(f"{player} ({player_str}): Column {ascii_uppercase[i]}({i}): {result}", "cyan"))    
             if result != "FULL" and result != "BAD" and result != CellState.EMPTY:    # if there is a winner
-                best_move = self.possible_moves[i]          # possible_moves is the list of cell objects to use for reference
+                best_move = self.possible_moves[i]          # possible_moves is the list of cells to use for reference
 
                 logging.debug(beesutils.color(f"Winner found for {player} in column {ascii_uppercase[i]}.", "red"))
                 return best_move                        # return early if a winner is found
@@ -139,7 +151,7 @@ class ComputerMoveCalculator:
         return None                        # if it completes the loop without finding a winner, return None
     
     
-    def last_resort(self, result_list) -> object:
+    def last_resort(self, result_list: List[Union[CellState, str]]) -> Cell:
         """If there's no winners, this returns the best heuristic cell available, skipping bad moves. \n
         Unless there's only bad moves, in which case it just returns those (results in losing the game) \n"""
 
@@ -157,6 +169,8 @@ class ComputerMoveCalculator:
         # note: because it gets the actual cell objects from possible_moves, after this point it doesn't matter what order they're in.
 
         avail_cells = move_types["NEUTRAL"] or move_types["BAD"]        # this is called a short-circuit evaluation
+        # a short-circuit evaluation is when the first condition is True, it doesn't bother checking the second condition
+        # so here, if there's neutral moves it will only use those, otherwise it will use the bad moves
         
         for key, value in move_types.items():       # just for debugging
             for move in value:
@@ -168,7 +182,7 @@ class ComputerMoveCalculator:
         return best_heuristic_cell
     
     
-    def get_best_heuristic_with_random(self, avail_cells: list, randomness_threshold: float = 0.2) -> object:
+    def get_best_heuristic_with_random(self, avail_cells: List[Cell], randomness_threshold: float = 0.2) -> Cell:
         """ Adds a random element to the heuristic selection process. This is to prevent the computer from always making the same moves.
         The randomness_threshold is the probability of ignoring the heuristic score entirely. Otherwises randomizes from cells tied for best."""
 
@@ -193,7 +207,7 @@ class ComputerMoveCalculator:
     #                                              #
     ##########   Start of Function core   ##########
 
-    def computer_move(self) -> object:
+    def computer_move(self) -> Cell:
 
         self.get_possible_moves()
         if not self.possible_moves:
@@ -202,20 +216,20 @@ class ComputerMoveCalculator:
         logging.debug(beesutils.color("Attempting possible moves for computer's turn...", "green"))
         result_list = self.attempt_possible_moves()                          # index matches the column
 
-        best_move: object = self.examine_list(result_list, "current")                
+        best_move: Optional[Cell] = self.examine_list(result_list, "current")                
         if best_move is not None:                                       # return early if a winner is found
             return best_move                     
 
         logging.debug(beesutils.color("Checking if opponent has winning move...", "green"))
         result_list_opp = self.attempt_possible_moves(True, False)           # updater_flip True, check_above False
 
-        best_move: object = self.examine_list(result_list_opp, "opp")      
+        best_move: Optional[Cell] = self.examine_list(result_list_opp, "opp")      
         if best_move is not None:                                       # return early if a winner is found
             return best_move
         
         if best_move is None:
-            best_move = self.last_resort(result_list)
-            return best_move
+            last_resort_move: Cell = self.last_resort(result_list)
+            return last_resort_move
     
 
     ### NOTES ON HOW IT WORKS ###
